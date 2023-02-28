@@ -4,7 +4,14 @@ project(mybench)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cachelib/cmake/")
+# set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../opt/cachelib/lib/cmake/")
+set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../opt/cachelib/")
+
 message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
+
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 
 find_package(cachelib CONFIG REQUIRED)
 find_package(fmt)
