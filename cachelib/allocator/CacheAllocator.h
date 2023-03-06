@@ -2155,6 +2155,10 @@ extern template class CacheAllocator<LruCacheWithSpinBucketsTrait>;
 extern template class CacheAllocator<Lru2QCacheTrait>;
 extern template class CacheAllocator<TinyLFUCacheTrait>;
 
+extern template class CacheAllocator<FRCacheTrait>;
+
+extern template class CacheAllocator<QDLPCacheTrait>;
+
 // CacheAllocator with an LRU eviction policy
 // LRU policy can be configured to act as a segmented LRU as well
 using LruAllocator = CacheAllocator<LruCacheTrait>;
@@ -2176,5 +2180,9 @@ using Lru2QAllocator = CacheAllocator<Lru2QCacheTrait>;
 // inserted items. And eventually it will onl admit items that are accessed
 // beyond a threshold into the warm cache.
 using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
+
+using FRAllocator = CacheAllocator<FRCacheTrait>;
+
+using QDLPAllocator = CacheAllocator<QDLPCacheTrait>;
 } // namespace cachelib
 } // namespace facebook

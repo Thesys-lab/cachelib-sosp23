@@ -35,6 +35,12 @@ struct DListObject {
   3: required i64 size,
 }
 
+struct ClockListObject {
+  1: required i64 compressedHead,
+  2: required i64 compressedTail,
+  3: required i64 size,
+}
+
 struct MultiDListObject {
   1: required list<DListObject> lists;
 }

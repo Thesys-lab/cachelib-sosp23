@@ -133,6 +133,52 @@ struct MMTinyLFUCollection {
   1: required map<i32, map<i32, MMTinyLFUObject>> pools,
 }
 
+struct MMFRConfig {
+  2: required bool updateOnWrite,
+  3: required i32 lruInsertionPointSpec,
+  4: bool updateOnRead = true,
+  5: bool tryLockUpdate = false,
+}
+
+struct MMFRObject {
+  1: required MMFRConfig config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  6: required i64 insertionPoint,
+  7: required i64 tailSize,
+  8: required ClockListObject fifo,
+  9: required i64 compressedInsertionPoint,
+}
+
+struct MMFRCollection {
+  1: required map<i32, map<i32, MMFRObject>> pools,
+}
+
+struct MMQDLPConfig {
+  2: required bool updateOnWrite,
+  3: required i32 lruInsertionPointSpec,
+  4: bool updateOnRead = true,
+  5: bool tryLockUpdate = false,
+}
+
+struct MMQDLPObject {
+  1: required MMQDLPConfig config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  6: required i64 insertionPoint,
+  7: required i64 tailSize,
+  8: required DListObject fifo,
+  9: required i64 compressedInsertionPoint,
+}
+
+struct MMQDLPCollection {
+  1: required map<i32, map<i32, MMQDLPObject>> pools,
+}
+
 struct ChainedHashTableObject {
   // fields in ChainedHashTable::Config
   1: required i32 bucketsPower,

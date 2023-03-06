@@ -18,6 +18,9 @@
 #include "cachelib/allocator/MM2Q.h"
 #include "cachelib/allocator/MMLru.h"
 #include "cachelib/allocator/MMTinyLFU.h"
+#include "cachelib/allocator/MMFR.h"
+#include "cachelib/allocator/MMQDLP.h"
+
 namespace facebook {
 namespace cachelib {
 // Types of AccessContainer and MMContainer
@@ -25,6 +28,9 @@ namespace cachelib {
 const int MMLru::kId = 1;
 const int MM2Q::kId = 2;
 const int MMTinyLFU::kId = 3;
+
+const int MMFR::kId = 4;
+const int MMQDLP::kId = 5;
 
 // AccessType
 const int ChainedHashTable::kId = 1;
