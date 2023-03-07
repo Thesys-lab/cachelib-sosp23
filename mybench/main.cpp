@@ -55,11 +55,12 @@ static void report_bench_result(struct bench_data *bench_data) {
       (bench_data->end_time.tv_usec - bench_data->start_time.tv_usec);
   double throughput = (double)n_req / runtime;
   printf(
-      "cachelib %d MiB, %s, "
+      "cachelib %s %d MiB, %s, "
       "%.2lf hour, runtime %.2lf sec, %ld requests, throughput "
       "%.2lf MQPS, miss ratio %.4lf\n",
       // "utilization %.4lf, "
       // "write ratio %.4lf, del ratio %.4lf\n",
+      typeid(bench_data->cache).name(),
       bench_data->cache_size_in_mb, bench_data->reader->trace_path,
       (double)bench_data->trace_time / 3600.0, runtime / 1.0e6, bench_data->n_get,
       throughput, miss_ratio);

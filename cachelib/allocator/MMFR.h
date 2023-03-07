@@ -198,6 +198,35 @@ class MMFR {
 
       LockedIterator(LockedIterator&&) noexcept = default;
 
+      LockedIterator& operator++() {
+        T* node = this->get();
+        T* last_node = node;
+        while (isAccessed(*node)) {
+          unmarkAccessed(*node);
+          // ++(*this);
+          this->goForward();
+          printf("while\n");
+          last_node = node;
+          node = this->get();
+          if (node == last_node) {
+            printf("node == last\n");
+          }
+        }
+        printf("return\n");
+        return *this;
+        // return ++(*this);
+      };
+
+      LockedIterator& operator--() {
+        throw std::invalid_argument(
+            "Decrementing eviction iterator is not supported");
+      };
+
+      // T* operator->() const noexcept { return getIter().operator->(); }
+      // T& operator*() const noexcept { return getIter().operator*(); }
+
+      // T* get() const noexcept { return getIter().get(); }
+
       // 1. Invalidate this iterator
       // 2. Unlock
       void destroy() {
@@ -216,6 +245,27 @@ class MMFR {
       }
 
      private:
+      // Bit MM_BIT_1 is used to record if the item has been accessed since
+      // being written in cache. Unaccessed items are ignored when determining
+      // projected update time.
+      void markAccessed(T& node) noexcept {
+        node.template setFlag<RefFlags::kMMFlag1>();
+        node.template setFlag<RefFlags::kMMVisited>();
+        // (node.*HookPtr).visit();
+      }
+
+      void unmarkAccessed(T& node) noexcept {
+        node.template unSetFlag<RefFlags::kMMFlag1>();
+        node.template unSetFlag<RefFlags::kMMVisited>();
+        // (node.*HookPtr).resetVisited();
+      }
+
+      bool isAccessed(const T& node) const noexcept {
+        return node.template isFlagSet<RefFlags::kMMFlag1>();
+        // return node.template isFlagSet<RefFlags::kMMVisited>();
+        // return (node.*HookPtr).isVisited();
+      }
+
       // private because it's easy to misuse and cause deadlock for MMFR
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
@@ -370,16 +420,19 @@ class MMFR {
     void markAccessed(T& node) noexcept {
       node.template setFlag<RefFlags::kMMFlag1>();
       node.template setFlag<RefFlags::kMMVisited>();
+      // (node.*HookPtr).visit();
     }
 
     void unmarkAccessed(T& node) noexcept {
       node.template unSetFlag<RefFlags::kMMFlag1>();
       node.template unSetFlag<RefFlags::kMMVisited>();
+      // (node.*HookPtr).resetVisited();
     }
 
     bool isAccessed(const T& node) const noexcept {
       return node.template isFlagSet<RefFlags::kMMFlag1>();
-      return node.template isFlagSet<RefFlags::kMMVisited>();
+      // return node.template isFlagSet<RefFlags::kMMVisited>();
+      // return (node.*HookPtr).isVisited();
     }
 
     // protects all operations on the lru. We never really just read the state

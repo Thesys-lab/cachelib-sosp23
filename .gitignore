@@ -25,3 +25,4 @@ cachelib/external/sparsemap/
 cachelib/external/fizz/
 
 mybench/_build/
+build/

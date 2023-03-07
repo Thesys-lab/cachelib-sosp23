@@ -39,14 +39,25 @@ void mycache_init(int64_t cache_size_in_mb, unsigned int hashpower,
 
   config.setCacheSize(cache_size_in_mb * 1024 * 1024)
       .setCacheName("My cache")
-      // .enableItemReaperInBackground(std::chrono::seconds(1), {})
-      // .enablePoolRebalancing(rebalance_strategy, std::chrono::seconds(1))
+      .enableItemReaperInBackground(std::chrono::seconds(1), {})
+      .enablePoolRebalancing(rebalance_strategy, std::chrono::seconds(1))
       .setAccessConfig({hashpower, 10})
       .validate();
 
   *cache_p = new Cache(config);
   *pool_p = (*cache_p)->addPool("default",
                                 (*cache_p)->getCacheMemoryStats().ramCacheSize);
+
+  // Cache::MMConfig mm_config;
+  // mm_config.lruInsertionPointSpec = 2;
+  // *pool_p = (*cache_p)->addPool("default",
+  //                               (*cache_p)->getCacheMemoryStats().ramCacheSize);
+
+  // Cache::MMConfig mm_config;
+  // mm_config.lruRefreshTime = 1;
+  // *pool_p = (*cache_p)->addPool("default",
+  //                               (*cache_p)->getCacheMemoryStats().ramCacheSize,
+  //                               {}, mm_config);
 
   util::setCurrentTimeSec(1);
   assert(util::getCurrentTimeSec() == 1);
