@@ -18,8 +18,8 @@ namespace facebook {
 namespace cachelib {
 
 /* Container Interface Implementation */
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-MMFR::Container<T, HookPtr>::Container(serialization::MMFRObject object,
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+MMClock::Container<T, HookPtr>::Container(serialization::MMClockObject object,
                                         PtrCompressor compressor)
     : compressor_(std::move(compressor)),
       fifo_(*object.fifo(), compressor_),
@@ -33,8 +33,8 @@ MMFR::Container<T, HookPtr>::Container(serialization::MMFRObject object,
                                    config_.mmReconfigureIntervalSecs.count();
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-bool MMFR::Container<T, HookPtr>::recordAccess(T& node,
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+bool MMClock::Container<T, HookPtr>::recordAccess(T& node,
                                                 AccessMode mode) noexcept {
   if ((mode == AccessMode::kWrite && !config_.updateOnWrite) ||
       (mode == AccessMode::kRead && !config_.updateOnRead)) {
@@ -47,6 +47,10 @@ bool MMFR::Container<T, HookPtr>::recordAccess(T& node,
     if (!isAccessed(node)) {
       markAccessed(node);
     }
+
+
+    setUpdateTime(node, curr);
+
 
     // auto func = [this, &node, curr]() {
     //   reconfigureLocked(curr);
@@ -63,11 +67,11 @@ bool MMFR::Container<T, HookPtr>::recordAccess(T& node,
     //   }
     // };
 
-    // // if the tryLockUpdate optimization is on, and we were able to grab the
-    // // lock, execute the critical section and return true, else return false
-    // //
-    // // if the tryLockUpdate optimization is off, we always execute the
-    // // critical section and return true
+    // if the tryLockUpdate optimization is on, and we were able to grab the
+    // lock, execute the critical section and return true, else return false
+    //
+    // if the tryLockUpdate optimization is off, we always execute the
+    // critical section and return true
     // if (config_.tryLockUpdate) {
     //   if (auto lck = LockHolder{*lruMutex_, std::try_to_lock}) {
     //     func();
@@ -83,17 +87,17 @@ bool MMFR::Container<T, HookPtr>::recordAccess(T& node,
   return false;
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-cachelib::EvictionAgeStat MMFR::Container<T, HookPtr>::getEvictionAgeStat(
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+cachelib::EvictionAgeStat MMClock::Container<T, HookPtr>::getEvictionAgeStat(
     uint64_t projectedLength) const noexcept {
   return lruMutex_->lock_combine([this, projectedLength]() {
     return getEvictionAgeStatLocked(projectedLength);
   });
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
+template <typename T, MMClock::Hook<T> T::*HookPtr>
 cachelib::EvictionAgeStat
-MMFR::Container<T, HookPtr>::getEvictionAgeStatLocked(
+MMClock::Container<T, HookPtr>::getEvictionAgeStatLocked(
     uint64_t projectedLength) const noexcept {
   EvictionAgeStat stat{};
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
@@ -109,8 +113,8 @@ MMFR::Container<T, HookPtr>::getEvictionAgeStatLocked(
   return stat;
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-void MMFR::Container<T, HookPtr>::setConfig(const Config& newConfig) {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+void MMClock::Container<T, HookPtr>::setConfig(const Config& newConfig) {
   lruMutex_->lock_combine([this, newConfig]() {
     config_ = newConfig;
     if (config_.lruInsertionPointSpec == 0 && insertionPoint_ != nullptr) {
@@ -130,13 +134,13 @@ void MMFR::Container<T, HookPtr>::setConfig(const Config& newConfig) {
   });
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-typename MMFR::Config MMFR::Container<T, HookPtr>::getConfig() const {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+typename MMClock::Config MMClock::Container<T, HookPtr>::getConfig() const {
   return lruMutex_->lock_combine([this]() { return config_; });
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-void MMFR::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+void MMClock::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
   if (config_.lruInsertionPointSpec == 0) {
     return;
   }
@@ -177,37 +181,38 @@ void MMFR::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
   insertionPoint_ = curr;
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-bool MMFR::Container<T, HookPtr>::add(T& node) noexcept {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+bool MMClock::Container<T, HookPtr>::add(T& node) noexcept {
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
   return lruMutex_->lock_combine([this, &node, currTime]() {
     if (node.isInMMContainer()) {
       return false;
     }
-    // if (config_.lruInsertionPointSpec == 0 || insertionPoint_ == nullptr) {
+    if (config_.lruInsertionPointSpec == 0 || insertionPoint_ == nullptr) {
       fifo_.linkAtHead(node);
-    // } else {
-    //   fifo_.insertBefore(*insertionPoint_, node);
-    // }
+    } else {
+      fifo_.insertBefore(*insertionPoint_, node);
+    }
     node.markInMMContainer();
     setUpdateTime(node, currTime);
     unmarkAccessed(node);
-    // updateLruInsertionPoint();
+    updateLruInsertionPoint();
     return true;
   });
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-typename MMFR::Container<T, HookPtr>::LockedIterator
-MMFR::Container<T, HookPtr>::getEvictionIterator() const noexcept {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+typename MMClock::Container<T, HookPtr>::LockedIterator
+MMClock::Container<T, HookPtr>::getEvictionIterator() noexcept {
   LockHolder l(*lruMutex_);
-  return LockedIterator{std::move(l), fifo_.rbegin()};
+  auto liter = LockedIterator{std::move(l), &fifo_};
+  return liter;
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
+template <typename T, MMClock::Hook<T> T::*HookPtr>
 template <typename F>
-void MMFR::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
+void MMClock::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
   if (config_.useCombinedLockForIterators) {
     lruMutex_->lock_combine([this, &fun]() { fun(Iterator{fifo_.rbegin()}); });
   } else {
@@ -216,8 +221,8 @@ void MMFR::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
   }
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-void MMFR::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+void MMClock::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept {
   // If we are removing the insertion point node, grow tail before we remove
   // so that insertionPoint_ is valid (or nullptr) after removal
   if (&node == insertionPoint_) {
@@ -231,8 +236,8 @@ void MMFR::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept {
   }
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-void MMFR::Container<T, HookPtr>::removeLocked(T& node) {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+void MMClock::Container<T, HookPtr>::removeLocked(T& node) {
   ensureNotInsertionPoint(node);
   fifo_.remove(node);
   unmarkAccessed(node);
@@ -245,30 +250,8 @@ void MMFR::Container<T, HookPtr>::removeLocked(T& node) {
   return;
 }
 
-// template <typename T, MMFR::Hook<T> T::*HookPtr>
-// void MMFR::Container<T, HookPtr>::evictTailNodeLocked(T& node) {
-//   ensureNotInsertionPoint(node);
-//   fifo_.remove(node);
-//   unmarkAccessed(node);
-//   if (isTail(node)) {
-//     unmarkTail(node);
-//     tailSize_--;
-//   }
-//   node.unmarkInMMContainer();
-//   updateLruInsertionPoint();
-//   return;
-// }
-
-// template <typename T, MMFR::Hook<T> T::*HookPtr>
-// void MMFR::Container<T, HookPtr>::evictTailNode(Iterator& it) noexcept {
-//   T& node = *it;
-//   XDCHECK(node.isInMMContainer());
-//   ++it;
-//   evictTailNode(node);
-// }
-
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-bool MMFR::Container<T, HookPtr>::remove(T& node) noexcept {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+bool MMClock::Container<T, HookPtr>::remove(T& node) noexcept {
   return lruMutex_->lock_combine([this, &node]() {
     if (!node.isInMMContainer()) {
       return false;
@@ -278,16 +261,24 @@ bool MMFR::Container<T, HookPtr>::remove(T& node) noexcept {
   });
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-void MMFR::Container<T, HookPtr>::remove(Iterator& it) noexcept {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+void MMClock::Container<T, HookPtr>::remove(Iterator& it) noexcept {
   T& node = *it;
   XDCHECK(node.isInMMContainer());
   ++it;
   removeLocked(node);
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-bool MMFR::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+void MMClock::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {
+  T& node = *it;
+  XDCHECK(node.isInMMContainer());
+  ++it;
+  removeLocked(node);
+}
+
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+bool MMClock::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   return lruMutex_->lock_combine([this, &oldNode, &newNode]() {
     if (!oldNode.isInMMContainer() || newNode.isInMMContainer()) {
       return false;
@@ -316,16 +307,16 @@ bool MMFR::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   });
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-serialization::MMFRObject MMFR::Container<T, HookPtr>::saveState()
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+serialization::MMClockObject MMClock::Container<T, HookPtr>::saveState()
     const noexcept {
-  serialization::MMFRConfig configObject;
+  serialization::MMClockConfig configObject;
   *configObject.updateOnWrite() = config_.updateOnWrite;
   *configObject.updateOnRead() = config_.updateOnRead;
   *configObject.tryLockUpdate() = config_.tryLockUpdate;
   *configObject.lruInsertionPointSpec() = config_.lruInsertionPointSpec;
 
-  serialization::MMFRObject object;
+  serialization::MMClockObject object;
   *object.config() = configObject;
   *object.compressedInsertionPoint() =
       compressor_.compress(insertionPoint_).saveState();
@@ -334,8 +325,8 @@ serialization::MMFRObject MMFR::Container<T, HookPtr>::saveState()
   return object;
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-MMContainerStat MMFR::Container<T, HookPtr>::getStats() const noexcept {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+MMContainerStat MMClock::Container<T, HookPtr>::getStats() const noexcept {
   auto stat = lruMutex_->lock_combine([this]() {
     auto* tail = fifo_.getTail();
 
@@ -346,10 +337,12 @@ MMContainerStat MMFR::Container<T, HookPtr>::getStats() const noexcept {
     // the rest of the parameters are 0, so we don't need the critical section
     // to return them
     return folly::make_array(fifo_.size(),
-                             tail == nullptr ? 0 : getUpdateTime(*tail));
+                             tail == nullptr ? 0 : getUpdateTime(*tail)
+                             );
   });
   return {stat[0] /* lru size */,
           stat[1] /* tail time */,
+          // 0,
           0,
           0,
           0,
@@ -357,8 +350,8 @@ MMContainerStat MMFR::Container<T, HookPtr>::getStats() const noexcept {
           0};
 }
 
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-void MMFR::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
+template <typename T, MMClock::Hook<T> T::*HookPtr>
+void MMClock::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
   if (currTime < nextReconfigureTime_) {
     return;
   }
@@ -373,12 +366,6 @@ void MMFR::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
   //     kLruRefreshTimeCap);
   // lruRefreshTime_.store(lruRefreshTime, std::memory_order_relaxed);
 }
-
-// Iterator Context Implementation
-template <typename T, MMFR::Hook<T> T::*HookPtr>
-MMFR::Container<T, HookPtr>::LockedIterator::LockedIterator(
-    LockHolder l, const Iterator& iter) noexcept
-    : Iterator(iter), l_(std::move(l)) {}
 
 } // namespace cachelib
 } // namespace facebook

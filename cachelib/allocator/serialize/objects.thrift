@@ -133,15 +133,15 @@ struct MMTinyLFUCollection {
   1: required map<i32, map<i32, MMTinyLFUObject>> pools,
 }
 
-struct MMFRConfig {
+struct MMClockConfig {
   2: required bool updateOnWrite,
   3: required i32 lruInsertionPointSpec,
   4: bool updateOnRead = true,
   5: bool tryLockUpdate = false,
 }
 
-struct MMFRObject {
-  1: required MMFRConfig config,
+struct MMClockObject {
+  1: required MMClockConfig config,
 
   // number of evictions for this MM object.
   5: i64 evictions = 0,
@@ -152,8 +152,8 @@ struct MMFRObject {
   9: required i64 compressedInsertionPoint,
 }
 
-struct MMFRCollection {
-  1: required map<i32, map<i32, MMFRObject>> pools,
+struct MMClockCollection {
+  1: required map<i32, map<i32, MMClockObject>> pools,
 }
 
 struct MMQDLPConfig {

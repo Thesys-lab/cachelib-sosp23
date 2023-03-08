@@ -73,11 +73,11 @@ struct CACHELIB_PACKED_ATTR ClockListHook {
   }
 
  private:
-  CompressedPtr next_{}; // next node in the linked list
-  CompressedPtr prev_{}; // previous node in the linked list
+  CompressedPtr next_{};  // next node in the linked list
+  CompressedPtr prev_{};  // previous node in the linked list
   // timestamp when this was last updated to the head of the list
   Time updateTime_{0};
-  int8_t visited_{0};
+  //   int32_t visited_{0};
 };
 
 // uses a double linked list to implement an LRU. T must be have a public
@@ -219,7 +219,8 @@ class ClockList {
 
     // Reset the iterator back to the beginning
     void resetToBegin() noexcept {
-      curr_ = dir_ == Direction::FROM_HEAD ? ClockList_->head_ : ClockList_->tail_;
+      curr_ =
+          dir_ == Direction::FROM_HEAD ? ClockList_->head_ : ClockList_->tail_;
     }
 
    protected:
@@ -243,6 +244,13 @@ class ClockList {
   Iterator end() const noexcept;
   Iterator rend() const noexcept;
 
+  // eviction iterator
+  Iterator evictBegin() noexcept;
+
+  bool isCurrAtTail() const noexcept { return curr_hand_ == tail_; }
+
+  void setCurrHand(T* node) noexcept { curr_hand_ = node; }
+
  private:
   // unlinks the node from the linked list. Does not correct the next and
   // previous.
@@ -256,10 +264,13 @@ class ClockList {
   // tail of the linked list
   T* tail_{nullptr};
 
+  // clock hand
+  T* curr_hand_{nullptr};
+
   // size of the list
   size_t size_{0};
 };
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook
 
 #include "cachelib/allocator/datastruct/ClockList-inl.h"

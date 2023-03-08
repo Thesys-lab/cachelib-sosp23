@@ -19,7 +19,7 @@
 #include "cachelib/allocator/MM2Q.h"
 #include "cachelib/allocator/MMLru.h"
 #include "cachelib/allocator/MMTinyLFU.h"
-#include "cachelib/allocator/MMFR.h"
+#include "cachelib/allocator/MMClock.h"
 #include "cachelib/allocator/MMQDLP.h"
 #include "cachelib/common/Mutex.h"
 
@@ -57,8 +57,8 @@ struct TinyLFUCacheTrait {
   using AccessTypeLocks = SharedMutexBuckets;
 };
 
-struct FRCacheTrait {
-  using MMType = MMFR;
+struct ClockCacheTrait {
+  using MMType = MMClock;
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
 };

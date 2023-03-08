@@ -91,6 +91,9 @@ void ClockList<T, HookPtr>::unlink(const T& node) noexcept {
   if (&node == tail_) {
     tail_ = prev;
   }
+  if (&node == curr_hand_) {
+    curr_hand_ = prev;
+  }
 
   // fix the next and prev ptrs of the node before and after us.
   if (prev != nullptr) {
@@ -117,6 +120,9 @@ void ClockList<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   }
   if (&oldNode == tail_) {
     tail_ = &newNode;
+  }
+  if (&oldNode == curr_hand_) {
+    curr_hand_ = &newNode;
   }
 
   // Make the previous and next nodes point to the new node
@@ -187,28 +193,42 @@ ClockList<T, HookPtr>::Iterator::operator--() noexcept {
 }
 
 template <typename T, ClockListHook<T> T::*HookPtr>
-typename ClockList<T, HookPtr>::Iterator ClockList<T, HookPtr>::begin() const noexcept {
+typename ClockList<T, HookPtr>::Iterator ClockList<T, HookPtr>::begin()
+    const noexcept {
   return ClockList<T, HookPtr>::Iterator(head_, Iterator::Direction::FROM_HEAD,
-                                     *this);
+                                         *this);
 }
 
 template <typename T, ClockListHook<T> T::*HookPtr>
 typename ClockList<T, HookPtr>::Iterator ClockList<T, HookPtr>::rbegin()
     const noexcept {
   return ClockList<T, HookPtr>::Iterator(tail_, Iterator::Direction::FROM_TAIL,
-                                     *this);
+                                         *this);
 }
 
 template <typename T, ClockListHook<T> T::*HookPtr>
-typename ClockList<T, HookPtr>::Iterator ClockList<T, HookPtr>::end() const noexcept {
-  return ClockList<T, HookPtr>::Iterator(nullptr, Iterator::Direction::FROM_HEAD,
-                                     *this);
+typename ClockList<T, HookPtr>::Iterator ClockList<T, HookPtr>::end()
+    const noexcept {
+  return ClockList<T, HookPtr>::Iterator(nullptr,
+                                         Iterator::Direction::FROM_HEAD, *this);
 }
 
 template <typename T, ClockListHook<T> T::*HookPtr>
-typename ClockList<T, HookPtr>::Iterator ClockList<T, HookPtr>::rend() const noexcept {
-  return ClockList<T, HookPtr>::Iterator(nullptr, Iterator::Direction::FROM_TAIL,
-                                     *this);
+typename ClockList<T, HookPtr>::Iterator ClockList<T, HookPtr>::rend()
+    const noexcept {
+  return ClockList<T, HookPtr>::Iterator(nullptr,
+                                         Iterator::Direction::FROM_TAIL, *this);
+}
+
+template <typename T, ClockListHook<T> T::*HookPtr>
+typename ClockList<T, HookPtr>::Iterator
+ClockList<T, HookPtr>::evictBegin() noexcept {
+  if (curr_hand_ == nullptr) {
+    // printf("size %ld list %p reset hand to tail\n", size_, this);
+    curr_hand_ = tail_;
+  }
+  return ClockList<T, HookPtr>::Iterator(curr_hand_,
+                                         Iterator::Direction::FROM_TAIL, *this);
 }
 } // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib

@@ -38,16 +38,15 @@
 namespace facebook {
 namespace cachelib {
 
-// FIFO-reinsertion 
-// use n bits to track whether an object's frequency / has been accessed (n=1 or 2)
-// the bit incr by 1 when an object is requested
-// at eviction time, 
-// the pointer scan from the last scan position (or the least recently used if first time) 
-// to the most recently used, if an object is not accessed, it is evicted
-// otherwise, the tracked freq reduces by one and insert the object back 
-// 
+// FIFO-reinsertion
+// use n bits to track whether an object's frequency / has been accessed (n=1 or
+// 2) the bit incr by 1 when an object is requested at eviction time, the
+// pointer scan from the last scan position (or the least recently used if first
+// time) to the most recently used, if an object is not accessed, it is evicted
+// otherwise, the tracked freq reduces by one and insert the object back
+//
 // other names: Clock / Second Chance
-class MMFR {
+class MMClock {
  public:
   // unique identifier per MMType
   static const int kId;
@@ -55,19 +54,19 @@ class MMFR {
   // forward declaration;
   template <typename T>
   using Hook = ClockListHook<T>;
-  using SerializationType = serialization::MMFRObject;
-  using SerializationConfigType = serialization::MMFRConfig;
-  using SerializationTypeContainer = serialization::MMFRCollection;
+  using SerializationType = serialization::MMClockObject;
+  using SerializationConfigType = serialization::MMClockConfig;
+  using SerializationTypeContainer = serialization::MMClockCollection;
 
-  // This is not applicable for MMFR, just for compile of cache allocator
+  // This is not applicable for MMClock, just for compile of cache allocator
   enum LruType { NumTypes };
 
-  // Config class for MMFR
+  // Config class for MMClock
   struct Config {
     // create from serialized config
     explicit Config(SerializationConfigType configState)
-        : Config(*configState.updateOnWrite(),
-                 *configState.updateOnRead(), 1) {}
+        : Config(*configState.updateOnWrite(), *configState.updateOnRead(), 1) {
+    }
 
     // @param time        the LRU refresh time in seconds.
     //                    An item will be promoted only once in each lru refresh
@@ -94,19 +93,15 @@ class MMFR {
     //                                refresh time according to the ratio.
     // useCombinedLockForIterators    Whether to use combined locking for
     //                                withEvictionIterator
-    Config(bool updateOnW,
-           bool updateOnR,
-           int8_t n_bits,
-           bool tryLockU,
-           uint8_t ipSpec,           
-           uint32_t mmReconfigureInterval,
-           bool useCombinedLockForIterators):
-          updateOnWrite(updateOnW),
+    Config(bool updateOnW, bool updateOnR, int8_t n_bits, bool tryLockU,
+           uint8_t ipSpec, uint32_t mmReconfigureInterval,
+           bool useCombinedLockForIterators)
+        : updateOnWrite(updateOnW),
           updateOnRead(updateOnR),
           n_bits(n_bits),
           lruInsertionPointSpec(ipSpec),
           mmReconfigureIntervalSecs(
-          std::chrono::seconds(mmReconfigureInterval)),
+              std::chrono::seconds(mmReconfigureInterval)),
           tryLockUpdate(tryLockU),
           useCombinedLockForIterators(useCombinedLockForIterators) {}
 
@@ -179,7 +174,7 @@ class MMFR {
               : static_cast<Time>(util::getCurrentTimeSec()) +
                     config_.mmReconfigureIntervalSecs.count();
     }
-    Container(serialization::MMFRObject object, PtrCompressor compressor);
+    Container(serialization::MMClockObject object, PtrCompressor compressor);
 
     Container(const Container&) = delete;
     Container& operator=(const Container&) = delete;
@@ -190,7 +185,7 @@ class MMFR {
     // there can be only one iterator active since we need to lock the LRU for
     // iteration. we can support multiple iterators at same time, by using a
     // shared ptr in the context for the lock holder in the future.
-    class LockedIterator : public Iterator {
+    class LockedIterator {
      public:
       // noncopyable but movable.
       LockedIterator(const LockedIterator&) = delete;
@@ -198,23 +193,21 @@ class MMFR {
 
       LockedIterator(LockedIterator&&) noexcept = default;
 
+#define USE_MYCLOCK
+
       LockedIterator& operator++() {
-        T* node = this->get();
-        T* last_node = node;
-        while (isAccessed(*node)) {
-          unmarkAccessed(*node);
-          // ++(*this);
-          this->goForward();
-          printf("while\n");
-          last_node = node;
-          node = this->get();
-          if (node == last_node) {
-            printf("node == last\n");
-          }
-        }
-        printf("return\n");
+        //   if (isTail(node)) {
+        //     unmarkTail(node);
+        //     tailSize_--;
+        //     XDCHECK_LE(0u, tailSize_);
+        //     updateLruInsertionPoint();
+        //   }
+
+        // no impact for clock
+        findNextEvictionCandidate();
+        fifo_->setCurrHand(iter_.get());
+
         return *this;
-        // return ++(*this);
       };
 
       LockedIterator& operator--() {
@@ -222,15 +215,19 @@ class MMFR {
             "Decrementing eviction iterator is not supported");
       };
 
-      // T* operator->() const noexcept { return getIter().operator->(); }
-      // T& operator*() const noexcept { return getIter().operator*(); }
+      T* operator->() const noexcept { return iter_.operator->(); }
+      T& operator*() const noexcept { return iter_.operator*(); }
 
-      // T* get() const noexcept { return getIter().get(); }
+      T* get() const noexcept { return iter_.get(); }
+
+      explicit operator bool() const noexcept {
+        return static_cast<bool>(iter_);
+      }
 
       // 1. Invalidate this iterator
       // 2. Unlock
       void destroy() {
-        Iterator::reset();
+        iter_.reset();
         if (l_.owns_lock()) {
           l_.unlock();
         }
@@ -238,10 +235,11 @@ class MMFR {
 
       // Reset this iterator to the beginning
       void resetToBegin() {
+        XLOG(WARN, "resetToBegin\n");
         if (!l_.owns_lock()) {
           l_.lock();
         }
-        Iterator::resetToBegin();
+        iter_.resetToBegin();
       }
 
      private:
@@ -250,30 +248,65 @@ class MMFR {
       // projected update time.
       void markAccessed(T& node) noexcept {
         node.template setFlag<RefFlags::kMMFlag1>();
-        node.template setFlag<RefFlags::kMMVisited>();
-        // (node.*HookPtr).visit();
       }
 
       void unmarkAccessed(T& node) noexcept {
         node.template unSetFlag<RefFlags::kMMFlag1>();
-        node.template unSetFlag<RefFlags::kMMVisited>();
-        // (node.*HookPtr).resetVisited();
       }
 
       bool isAccessed(const T& node) const noexcept {
         return node.template isFlagSet<RefFlags::kMMFlag1>();
-        // return node.template isFlagSet<RefFlags::kMMVisited>();
-        // return (node.*HookPtr).isVisited();
       }
 
-      // private because it's easy to misuse and cause deadlock for MMFR
+      void findNextEvictionCandidate() {
+        int n_iter_reset = 0;
+        while (true) {
+          T* node = iter_.get();
+          if (node == nullptr) {
+            iter_ = fifo_->evictBegin();
+            n_iter_reset += 1;
+            if (n_iter_reset > 2) {
+              printf("list size %d\n", fifo_->size());
+              XLOG(CRITICAL, "iter reset too many times");
+              abort();
+            }
+            continue;
+          }
+
+          if (!isAccessed(*node)) {
+            break;
+          }
+          unmarkAccessed(*node);
+#ifdef USE_MYCLOCK
+          ++iter_;
+#else
+          /* clock */
+          fifo_->moveToHead(*node);
+          iter_ = fifo_->rbegin();
+#endif
+        }
+      }
+
+      // private because it's easy to misuse and cause deadlock for MMClock
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
       // create an lru iterator with the lock being held.
-      LockedIterator(LockHolder l, const Iterator& iter) noexcept;
+#ifdef USE_MYCLOCK
+      LockedIterator(LockHolder l, FRList* fifo)
+          : fifo_(fifo), iter_(fifo_->evictBegin()), l_(std::move(l)) {
+        findNextEvictionCandidate();
+      }
+#else
+      LockedIterator(LockHolder l, FRList* fifo)
+          : fifo_(fifo), iter_(fifo_->rbegin()), l_(std::move(l)) {};
+#endif
 
       // only the container can create iterators
       friend Container<T, HookPtr>;
+
+      FRList* fifo_;
+
+      Iterator iter_;
 
       // lock protecting the validity of the iterator
       LockHolder l_;
@@ -318,6 +351,8 @@ class MMFR {
     // @param it    Iterator that will be removed
     void remove(Iterator& it) noexcept;
 
+    void remove(LockedIterator& it) noexcept;
+
     // replaces one node with another, at the same position
     //
     // @param oldNode   node being replaced
@@ -331,7 +366,7 @@ class MMFR {
     // Obtain an iterator that start from the tail and can be used
     // to search for evictions. This iterator holds a lock to this
     // container and only one such iterator can exist at a time
-    LockedIterator getEvictionIterator() const noexcept;
+    LockedIterator getEvictionIterator() noexcept;
 
     // Execute provided function under container lock. Function gets
     // iterator passed as parameter.
@@ -364,7 +399,7 @@ class MMFR {
     // present. Any modification of this object afterwards will result in an
     // invalid, inconsistent state for the serialized data.
     //
-    serialization::MMFRObject saveState() const noexcept;
+    serialization::MMClockObject saveState() const noexcept;
 
     // return the stats for this container.
     MMContainerStat getStats() const noexcept;
@@ -419,20 +454,14 @@ class MMFR {
     // projected update time.
     void markAccessed(T& node) noexcept {
       node.template setFlag<RefFlags::kMMFlag1>();
-      node.template setFlag<RefFlags::kMMVisited>();
-      // (node.*HookPtr).visit();
     }
 
     void unmarkAccessed(T& node) noexcept {
       node.template unSetFlag<RefFlags::kMMFlag1>();
-      node.template unSetFlag<RefFlags::kMMVisited>();
-      // (node.*HookPtr).resetVisited();
     }
 
     bool isAccessed(const T& node) const noexcept {
       return node.template isFlagSet<RefFlags::kMMFlag1>();
-      // return node.template isFlagSet<RefFlags::kMMVisited>();
-      // return (node.*HookPtr).isVisited();
     }
 
     // protects all operations on the lru. We never really just read the state
@@ -458,17 +487,17 @@ class MMFR {
     // std::atomic<uint32_t> lruRefreshTime_{};
 
     // Config for this lru.
-    // Write access to the MMFR Config is serialized.
+    // Write access to the MMClock Config is serialized.
     // Reads may be racy.
     Config config_{};
 
     // // Max lruFreshTime.
     // static constexpr uint32_t kLruRefreshTimeCap{900};
 
-    FRIEND_TEST(MMFRTest, Reconfigure);
+    FRIEND_TEST(MMClockTest, Reconfigure);
   };
 };
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook
 
-#include "cachelib/allocator/MMFR-inl.h"
+#include "cachelib/allocator/MMClock-inl.h"

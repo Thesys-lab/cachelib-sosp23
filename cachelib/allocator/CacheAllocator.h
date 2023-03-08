@@ -2155,7 +2155,7 @@ extern template class CacheAllocator<LruCacheWithSpinBucketsTrait>;
 extern template class CacheAllocator<Lru2QCacheTrait>;
 extern template class CacheAllocator<TinyLFUCacheTrait>;
 
-extern template class CacheAllocator<FRCacheTrait>;
+extern template class CacheAllocator<ClockCacheTrait>;
 
 extern template class CacheAllocator<QDLPCacheTrait>;
 
@@ -2181,7 +2181,7 @@ using Lru2QAllocator = CacheAllocator<Lru2QCacheTrait>;
 // beyond a threshold into the warm cache.
 using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
 
-using FRAllocator = CacheAllocator<FRCacheTrait>;
+using ClockAllocator = CacheAllocator<ClockCacheTrait>;
 
 using QDLPAllocator = CacheAllocator<QDLPCacheTrait>;
 } // namespace cachelib

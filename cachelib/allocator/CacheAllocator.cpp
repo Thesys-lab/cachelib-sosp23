@@ -23,7 +23,7 @@ template class CacheAllocator<LruCacheWithSpinBucketsTrait>;
 template class CacheAllocator<Lru2QCacheTrait>;
 template class CacheAllocator<TinyLFUCacheTrait>;
 
-template class CacheAllocator<FRCacheTrait>;
+template class CacheAllocator<ClockCacheTrait>;
 
 template class CacheAllocator<QDLPCacheTrait>;
 
