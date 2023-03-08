@@ -52,24 +52,24 @@ bool MMClock::Container<T, HookPtr>::recordAccess(T& node,
     setUpdateTime(node, curr);
 
 
-    // auto func = [this, &node, curr]() {
-    //   reconfigureLocked(curr);
-    //   ensureNotInsertionPoint(node);
-    //   if (node.isInMMContainer()) {
-    //     fifo_.moveToHead(node);
-    //     setUpdateTime(node, curr);
-    //   }
-    //   if (isTail(node)) {
-    //     unmarkTail(node);
-    //     tailSize_--;
-    //     XDCHECK_LE(0u, tailSize_);
-    //     updateLruInsertionPoint();
-    //   }
-    // };
+    auto func = [this, &node, curr]() {
+      reconfigureLocked(curr);
+      ensureNotInsertionPoint(node);
+      if (node.isInMMContainer()) {
+        fifo_.moveToHead(node);
+        setUpdateTime(node, curr);
+      }
+      if (isTail(node)) {
+        unmarkTail(node);
+        tailSize_--;
+        XDCHECK_LE(0u, tailSize_);
+        updateLruInsertionPoint();
+      }
+    };
 
     // if the tryLockUpdate optimization is on, and we were able to grab the
     // lock, execute the critical section and return true, else return false
-    //
+    
     // if the tryLockUpdate optimization is off, we always execute the
     // critical section and return true
     // if (config_.tryLockUpdate) {

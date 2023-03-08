@@ -205,8 +205,6 @@ class MMClock {
 
         // no impact for clock
         findNextEvictionCandidate();
-        fifo_->setCurrHand(iter_.get());
-
         return *this;
       };
 
@@ -285,6 +283,7 @@ class MMClock {
           iter_ = fifo_->rbegin();
 #endif
         }
+        fifo_->setCurrHand(iter_.get());
       }
 
       // private because it's easy to misuse and cause deadlock for MMClock
@@ -294,7 +293,8 @@ class MMClock {
 #ifdef USE_MYCLOCK
       LockedIterator(LockHolder l, FRList* fifo)
           : fifo_(fifo), iter_(fifo_->evictBegin()), l_(std::move(l)) {
-        findNextEvictionCandidate();
+            if (fifo_->size() > 0)
+              findNextEvictionCandidate();
       }
 #else
       LockedIterator(LockHolder l, FRList* fifo)
