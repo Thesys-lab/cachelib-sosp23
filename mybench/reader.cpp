@@ -31,12 +31,14 @@ char val_array[MAX_VAL_LEN];
  * @return
  */
 struct reader *open_trace(const char *trace_path,
-                          const enum trace_type trace_type) {
+                          const enum trace_type trace_type,
+                          const int reader_id) {
   int fd;
   struct stat st;
   struct reader *reader =
       reinterpret_cast<struct reader *>(malloc(sizeof(struct reader)));
   memset(reader, 0, sizeof(struct reader));
+  reader->reader_id = reader_id;
 
   /* init reader module */
   for (int i = 0; i < MAX_VAL_LEN; i++) val_array[i] = (char)('A' + i % 26);
@@ -120,7 +122,12 @@ int read_trace(struct reader *reader, struct request *req) {
 int read_oracleGeneral_trace(struct reader *reader, struct request *req) {
   char *record = reader->mmap + reader->offset;
   req->timestamp = *(uint32_t *)record + 1;
-  *(uint64_t *)req->key = *(uint64_t *)(record + 4);
+
+  uint64_t obj_id = *(uint64_t *)(record + 4);
+  // used to make sure each reader has different keys
+  // obj_id = (obj_id + reader->reader_id * 1000000000) % UINT64_MAX;
+  *(uint64_t *)req->key = obj_id;
+
   req->key_len = 8;
   req->val_len = *(uint64_t *)(record + 12);
   if (req->val_len > 1048500) req->val_len = 1048500;

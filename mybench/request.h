@@ -47,6 +47,10 @@ static inline struct request *new_request() {
   return request;
 }
 
+static inline void free_request(struct request *request) {
+  free(request);
+}
+
 static inline void print_req(struct request *req) {
   printf("%d %s %s vallen %d ttl %d\n", req->timestamp, op_names[req->op],
          req->key, req->val_len, req->ttl);

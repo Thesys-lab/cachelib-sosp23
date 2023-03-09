@@ -19,6 +19,7 @@ enum trace_type {
 
 struct reader {
   char *mmap;
+  int32_t reader_id;
   int trace_start_ts;
   size_t offset;
   size_t file_size;
@@ -31,7 +32,9 @@ struct reader {
   int record_size; /* the size the trace uses to store a request entry */
 };
 
-struct reader *open_trace(const char *trace_path, enum trace_type trace_type);
+struct reader *open_trace(const char *trace_path,
+                          const enum trace_type trace_type,
+                          const int32_t reader_id = 0);
 
 int read_trace(struct reader *reader, struct request *req);
 

@@ -12,94 +12,68 @@
 #include "reader.h"
 #include "request.h"
 
-void *trace_replay_run(struct bench_data *bench_data) {
+void trace_replay_run(struct bench_data *bdata, bench_opts_t *opts) {
   struct request *req = new_request();
-  gettimeofday(&bench_data->start_time, NULL);
+  struct reader *reader = open_trace(opts->trace_path, opts->trace_type);
+
+  gettimeofday(&bdata->start_time, NULL);
 
   int status;
-  read_trace(bench_data->reader, req);
+  read_trace(reader, req);
   int32_t trace_start_ts = req->timestamp;
-  int32_t next_report_trace_ts =
-      bench_data->report_interval > 0
-          ? trace_start_ts + bench_data->report_interval
-          : INT32_MAX;
+  int32_t next_report_trace_ts = opts->report_interval > 0
+                                     ? trace_start_ts + opts->report_interval
+                                     : INT32_MAX;
 
-  bool has_warmup = false;
-  int warmup_time = 86400 * 0;
+  int warmup_time = 86400 * -1;
 
-  while (read_trace(bench_data->reader, req) == 0) {
-    if ((!has_warmup) && req->timestamp > warmup_time) {
-      bench_data->n_get = 0;
-      bench_data->n_set = 0;
-      bench_data->n_get_miss = 0;
-      bench_data->n_del = 0;
-      has_warmup = true;
-      gettimeofday(&bench_data->start_time, NULL);
-      printf("warmup finish trace %d sec\n", req->timestamp);
-    }
+  bdata->n_get = bdata->n_set = bdata->n_get_miss = 0;
+  bdata->n_del = 0;
 
-    switch (req->op) {
-      case op_get:
-        bench_data->n_get++;
-        status = cache_get(bench_data->cache, bench_data->pool, req);
-        // printf("%d  ", status);
-        // print_req(req);
-        if (status == 1) {
-          bench_data->n_get_miss++;
-          bench_data->n_set++;
-          status = cache_set(bench_data->cache, bench_data->pool, req);
-        }
-        break;
-      case op_set:
-        bench_data->n_set++;
-        status = cache_set(bench_data->cache, bench_data->pool, req);
-        break;
-      case op_del:
-        status = cache_del(bench_data->cache, bench_data->pool, req);
-        bench_data->n_del++;
-        break;
-      case op_ignore:
-        break;
-      default:;
-        printf("op not supported %d\n", req->op);
-        assert(false);
-    }
+  while (req->timestamp < warmup_time) {
+    cache_go(bdata->cache, bdata->pool, req, &bdata->n_get, &bdata->n_set,
+             &bdata->n_del, &bdata->n_get_miss);
+    read_trace(reader, req);
+  }
 
-    // print_req(req);
+  if (warmup_time > 0) printf("warmup finish trace %d sec\n", req->timestamp);
+  gettimeofday(&bdata->start_time, NULL);
+
+  while (read_trace(reader, req) == 0) {
+    cache_go(bdata->cache, bdata->pool, req, &bdata->n_get, &bdata->n_set,
+             &bdata->n_del, &bdata->n_get_miss);
+
     if (req->timestamp >= next_report_trace_ts) {
-      next_report_trace_ts += bench_data->report_interval;
-      bench_data->trace_time = req->timestamp;
-      report_bench_result(bench_data);
+      next_report_trace_ts += opts->report_interval;
+      bdata->trace_time = req->timestamp;
+      report_bench_result(bdata, opts);
     }
   }
 
-  bench_data->trace_time = req->timestamp;
-  gettimeofday(&bench_data->end_time, nullptr);
-  return bench_data;
+  bdata->trace_time = req->timestamp;
+  gettimeofday(&bdata->end_time, nullptr);
+
+  close_trace(reader);
+  free_request(req);
 }
 
-void benchmark_destroy(struct bench_data *bench_data) {
-  close_trace(bench_data->reader);
-}
-
-void report_bench_result(struct bench_data *bench_data) {
-  int64_t n_req = bench_data->n_get + bench_data->n_set + bench_data->n_del;
-  double write_ratio = (double)bench_data->n_set / n_req;
-  double miss_ratio = (double)bench_data->n_get_miss / bench_data->n_get;
-  double del_ratio = (double)bench_data->n_del / n_req;
-  gettimeofday(&bench_data->end_time, nullptr);
+void report_bench_result(struct bench_data *bdata, bench_opts_t *opts) {
+  int64_t n_req = bdata->n_get + bdata->n_set + bdata->n_del;
+  double write_ratio = (double)bdata->n_set / n_req;
+  double miss_ratio = (double)bdata->n_get_miss / bdata->n_get;
+  double del_ratio = (double)bdata->n_del / n_req;
+  gettimeofday(&bdata->end_time, nullptr);
   double runtime =
-      (bench_data->end_time.tv_sec - bench_data->start_time.tv_sec) *
-          1000000.0 +
-      (bench_data->end_time.tv_usec - bench_data->start_time.tv_usec);
+      (bdata->end_time.tv_sec - bdata->start_time.tv_sec) * 1000000.0 +
+      (bdata->end_time.tv_usec - bdata->start_time.tv_usec);
   double throughput = (double)n_req / runtime;
   printf(
-      "cachelib %s %d MiB, %s, "
+      "cachelib %s %ld MiB, %s, "
       "%.2lf hour, runtime %.2lf sec, %ld requests, throughput "
       "%.2lf MQPS, miss ratio %.4lf\n",
       // "utilization %.4lf, "
       // "write ratio %.4lf, del ratio %.4lf\n",
-      typeid(bench_data->cache).name(), bench_data->cache_size_in_mb,
-      bench_data->reader->trace_path, (double)bench_data->trace_time / 3600.0,
-      runtime / 1.0e6, bench_data->n_get, throughput, miss_ratio);
+      typeid(bdata->cache).name(), opts->cache_size_in_mb, opts->trace_path,
+      (double)bdata->trace_time / 3600.0, runtime / 1.0e6, bdata->n_get,
+      throughput, miss_ratio);
 }

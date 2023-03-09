@@ -19,5 +19,5 @@ find_package(fmt)
 
 # add_library (mybenchlib reader.c)
 
-add_executable(mybench main.cpp reader.cpp bench.cpp cache.cpp)
+add_executable(mybench main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
 target_link_libraries(mybench cachelib fmt::fmt) 
