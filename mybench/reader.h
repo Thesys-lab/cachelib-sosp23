@@ -14,11 +14,7 @@ extern "C" {
 #define MAX_TRACE_PATH_LEN 1024
 
 enum trace_type {
-  oracleSysTwrNS,
-  oracleCF1,
-  oracleAkamai,
   oracleGeneral,
-  generalNS,
 };
 
 struct reader {
@@ -33,11 +29,9 @@ struct reader {
 
   enum trace_type trace_type;
   int record_size; /* the size the trace uses to store a request entry */
-  bool nottl;
 };
 
-struct reader *open_trace(const char *trace_path, enum trace_type trace_type,
-                          const bool nottl);
+struct reader *open_trace(const char *trace_path, enum trace_type trace_type);
 
 int read_trace(struct reader *reader, struct request *req);
 
@@ -50,12 +44,6 @@ void close_trace(struct reader *reader);
  * return 1 on trace EOF, otherwise 0
  *
  */
-int read_oracleSysTwrNS_trace(struct reader *reader, struct request *req);
-
-int read_oracleCF1_trace(struct reader *reader, struct request *req);
-
-int read_oracleAkamai_trace(struct reader *reader, struct request *req);
-
 int read_oracleGeneral_trace(struct reader *reader, struct request *req);
 
 #ifdef __cplusplus

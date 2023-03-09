@@ -27,9 +27,9 @@ bench_opts_t create_default_bench_opts() {
   bench_opts_t opts;
   opts.cache_size_in_mb = 200;
   opts.hashpower = 26;
-  opts.report_interval = 3600;
+  opts.report_interval = 86400;
   opts.nottl = true;
-  opts.trace_type = oracleSysTwrNS;
+  opts.trace_type = oracleGeneral;
   for (int i = 0; i < 100; i++) {
     opts.default_ttls[i] = 86400;
   }
@@ -69,36 +69,17 @@ static void parse_ttl_dict_str(char *ttl_dict_str, bench_opts_t *opts) {
 static bench_opts_t parse_cmd(int argc, char *argv[]) {
   bench_opts_t opts = create_default_bench_opts();
 
-  if (argc < 6) {
-    printf(
-        "usage: %s trace_path trace_type cache_size_in_MB "
-        "report_interval nottl\n",
-        argv[0]);
+  if (argc < 3) {
+    printf("usage: %s trace_path cache_size_in_MB [report_interval]\n",
+           argv[0]);
     exit(1);
   }
 
   strncpy(opts.trace_path, argv[1], MAX_TRACE_PATH_LEN);
-  opts.cache_size_in_mb = atoll(argv[3]);
-  opts.report_interval = atoll(argv[4]);
-  char *trace_type_str = argv[2];
-  opts.nottl = atol(argv[5]);
-
-  if (opts.nottl) {
-    printf("no ttl\n");
+  opts.cache_size_in_mb = atoll(argv[2]);
+  if (argc >= 4) {
+    opts.report_interval = atoll(argv[3]);
   }
-  // char *ttl_dict_str = argv[4];
-
-  enum trace_type trace_type;
-  if (strcmp(trace_type_str, "oracleSysTwrNS") == 0) {
-    opts.trace_type = oracleSysTwrNS;
-  } else if (strcmp(trace_type_str, "oracleGeneral") == 0) {
-    opts.trace_type = oracleGeneral;
-  } else {
-    printf("unknown trace type %s\n", trace_type_str);
-    abort();
-  }
-
-  // parse_ttl_dict_str(ttl_dict_str, &opts);
 
   return opts;
 }

@@ -264,7 +264,7 @@ class MMClock {
             iter_ = fifo_->evictBegin();
             n_iter_reset += 1;
             if (n_iter_reset > 2) {
-              printf("list size %d\n", fifo_->size());
+              printf("list size %ld\n", fifo_->size());
               XLOG(CRITICAL, "iter reset too many times");
               abort();
             }
