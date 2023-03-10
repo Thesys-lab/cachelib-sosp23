@@ -13,6 +13,10 @@ struct bench_data {
   int64_t n_del;
   int64_t n_get_miss;
 
+  int64_t n_req;
+  int64_t n_req_last_report;
+  double last_end_time_us;
+
   struct timeval start_time;
   struct timeval end_time;
   int64_t trace_time;

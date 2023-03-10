@@ -8,8 +8,8 @@
 #include <sysexits.h>
 #include <unistd.h>
 
-#include "cache.h"
 #include "bench.h"
+#include "cache.h"
 #include "reader.h"
 #include "request.h"
 
@@ -60,22 +60,33 @@ void trace_replay_run(struct bench_data *bdata, bench_opts_t *opts) {
 }
 
 void report_bench_result(struct bench_data *bdata, bench_opts_t *opts) {
-  int64_t n_req = bdata->n_get + bdata->n_set + bdata->n_del;
-  double write_ratio = (double)bdata->n_set / n_req;
+  bdata->n_req = bdata->n_get + bdata->n_set + bdata->n_del;
+  double write_ratio = (double)bdata->n_set / bdata->n_req;
   double miss_ratio = (double)bdata->n_get_miss / bdata->n_get;
-  double del_ratio = (double)bdata->n_del / n_req;
+  double del_ratio = (double)bdata->n_del / bdata->n_req;
+
   gettimeofday(&bdata->end_time, nullptr);
-  double runtime =
-      (bdata->end_time.tv_sec - bdata->start_time.tv_sec) * 1000000.0 +
-      (bdata->end_time.tv_usec - bdata->start_time.tv_usec);
-  double throughput = (double)n_req / runtime;
+  double start_time = bdata->start_time.tv_sec * 1e6 + bdata->start_time.tv_usec;
+  double end_time = bdata->end_time.tv_sec * 1e6 + bdata->end_time.tv_usec;
+  double runtime = end_time - start_time;
+  double throughput = (double)bdata->n_req / runtime;
+
+  if (bdata->last_end_time_us == 0) {
+    bdata->last_end_time_us = start_time;
+  }
+  int64_t n_req_since_last = bdata->n_req - bdata->n_req_last_report;
+  double runtime_since_last = end_time - bdata->last_end_time_us;
+  double throughput_since_last = (double) n_req_since_last / runtime_since_last;
+  bdata->n_req_last_report = bdata->n_req;
+  bdata->last_end_time_us = end_time;
+
   printf(
       "cachelib %s %ld MiB, %s, "
       "%.2lf hour, runtime %.2lf sec, %ld requests, throughput "
-      "%.2lf MQPS, miss ratio %.4lf\n",
+      "%.2lf/%.2lf MQPS, miss ratio %.4lf\n",
       // "utilization %.4lf, "
       // "write ratio %.4lf, del ratio %.4lf\n",
       typeid(bdata->cache).name(), opts->cache_size_in_mb, opts->trace_path,
       (double)bdata->trace_time / 3600.0, runtime / 1.0e6, bdata->n_get,
-      throughput, miss_ratio);
+      throughput, throughput_since_last, miss_ratio);
 }
