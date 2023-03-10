@@ -41,7 +41,7 @@ void mycache_init(int64_t cache_size_in_mb, unsigned int hashpower,
       .setCacheName("My cache")
       // .enableItemReaperInBackground(std::chrono::seconds(1), {})
       // .enablePoolRebalancing(rebalance_strategy, std::chrono::seconds(1))
-      .setAccessConfig({hashpower, 10})
+      .setAccessConfig({hashpower, 20})
       .validate();
 
   *cache_p = new Cache(config);
@@ -54,7 +54,7 @@ void mycache_init(int64_t cache_size_in_mb, unsigned int hashpower,
   //                               (*cache_p)->getCacheMemoryStats().ramCacheSize);
 
   // Cache::MMConfig mm_config;
-  // mm_config.lruRefreshTime = 1;
+  // mm_config.lruRefreshTime = 0;
   // *pool_p = (*cache_p)->addPool("default",
   //                               (*cache_p)->getCacheMemoryStats().ramCacheSize,
   //                               {}, mm_config);
@@ -75,7 +75,7 @@ static inline std::string gen_key(struct request *req) {
 int cache_get(Cache *cache, PoolId pool, struct request *req) {
   // static __thread char buf[1024 * 1024];
 
-  util::setCurrentTimeSec(req->timestamp);
+  // util::setCurrentTimeSec(req->timestamp);
 
   auto key = gen_key(req);
 
@@ -103,7 +103,7 @@ int cache_get(Cache *cache, PoolId pool, struct request *req) {
 }
 
 int cache_set(Cache *cache, PoolId pool, struct request *req) {
-  util::setCurrentTimeSec(req->timestamp);
+  // util::setCurrentTimeSec(req->timestamp);
 
   auto key = gen_key(req);
 
@@ -118,14 +118,14 @@ int cache_set(Cache *cache, PoolId pool, struct request *req) {
     return 1;
   }
 
-  // std::memcpy(item_handle->getMemory(), req->val, req->val_len);
+  std::memcpy(item_handle->getMemory(), req->val, req->val_len);
   cache->insertOrReplace(item_handle);
 
   return 0;
 }
 
 int cache_del(Cache *cache, PoolId pool, struct request *req) {
-  util::setCurrentTimeSec(req->timestamp);
+  // util::setCurrentTimeSec(req->timestamp);
 
   auto key = gen_key(req);
   auto rm = cache->remove(key);

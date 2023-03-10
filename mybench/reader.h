@@ -19,7 +19,7 @@ enum trace_type {
 
 struct reader {
   char *mmap;
-  int32_t reader_id;
+  int64_t reader_id;
   int trace_start_ts;
   size_t offset;
   size_t file_size;

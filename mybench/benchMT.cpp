@@ -14,6 +14,7 @@
 #include <thread>
 #include <vector>
 
+#include "cache.h"
 #include "bench.h"
 #include "reader.h"
 #include "request.h"
@@ -61,8 +62,9 @@ static void trace_replay_run_thread(struct bench_data *bdata,
 
   int status = read_trace(reader, req);
   assert(status == 0);
+  LOG(INFO) << "thread " << thread_id << " read " << *(uint64_t *)req->key
+            << ", wait to start";
 
-  LOG(INFO) << "thread " << thread_id << " wait to start";
   while (STOP_FLAG.load()) {
     // wait for all threads to be ready
     ;
@@ -70,6 +72,9 @@ static void trace_replay_run_thread(struct bench_data *bdata,
 
   LOG(INFO) << "thread " << thread_id << " start";
   while (read_trace(reader, req) == 0) {
+    if (res->n_get % 20 == 0 && thread_id == 1) {
+        util::setCurrentTimeSec(req->timestamp);
+    }
     status = cache_go(bdata->cache, bdata->pool, req, &res->n_get, &res->n_set,
                       &res->n_del, &res->n_get_miss);
 
@@ -109,6 +114,7 @@ static void aggregate_results(struct bench_data *bdata, bench_opts_t *opts,
     }
   }
   bdata->trace_time = max_trace_time;
+  util::setCurrentTimeSec(min_trace_time);
   printf("min trace time: %ld, max trace time: %ld\n", min_trace_time,
          max_trace_time);
 }

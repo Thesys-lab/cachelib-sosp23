@@ -8,6 +8,7 @@
 #include <sysexits.h>
 #include <unistd.h>
 
+#include "cache.h"
 #include "bench.h"
 #include "reader.h"
 #include "request.h"
@@ -40,6 +41,7 @@ void trace_replay_run(struct bench_data *bdata, bench_opts_t *opts) {
   gettimeofday(&bdata->start_time, NULL);
 
   while (read_trace(reader, req) == 0) {
+    util::setCurrentTimeSec(req->timestamp);
     cache_go(bdata->cache, bdata->pool, req, &bdata->n_get, &bdata->n_set,
              &bdata->n_del, &bdata->n_get_miss);
 
