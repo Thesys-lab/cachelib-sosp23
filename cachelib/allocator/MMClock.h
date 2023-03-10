@@ -196,13 +196,6 @@ class MMClock {
 #define USE_MYCLOCK
 
       LockedIterator& operator++() {
-        //   if (isTail(node)) {
-        //     unmarkTail(node);
-        //     tailSize_--;
-        //     XDCHECK_LE(0u, tailSize_);
-        //     updateLruInsertionPoint();
-        //   }
-
         // no impact for clock
         findNextEvictionCandidate();
         return *this;

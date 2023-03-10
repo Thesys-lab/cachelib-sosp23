@@ -261,13 +261,13 @@ bool MMClock::Container<T, HookPtr>::remove(T& node) noexcept {
   });
 }
 
-template <typename T, MMClock::Hook<T> T::*HookPtr>
-void MMClock::Container<T, HookPtr>::remove(Iterator& it) noexcept {
-  T& node = *it;
-  XDCHECK(node.isInMMContainer());
-  ++it;
-  removeLocked(node);
-}
+// template <typename T, MMClock::Hook<T> T::*HookPtr>
+// void MMClock::Container<T, HookPtr>::remove(Iterator& it) noexcept {
+//   T& node = *it;
+//   XDCHECK(node.isInMMContainer());
+//   ++it;
+//   removeLocked(node);
+// }
 
 template <typename T, MMClock::Hook<T> T::*HookPtr>
 void MMClock::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {

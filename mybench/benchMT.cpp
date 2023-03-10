@@ -72,7 +72,7 @@ static void trace_replay_run_thread(struct bench_data *bdata,
 
   LOG(INFO) << "thread " << thread_id << " start";
   while (read_trace(reader, req) == 0) {
-    if (res->n_get % 20 == 0 && thread_id == 1) {
+    if (res->n_get % 100 == 0 && thread_id == 1) {
         util::setCurrentTimeSec(req->timestamp);
     }
     status = cache_go(bdata->cache, bdata->pool, req, &res->n_get, &res->n_set,
