@@ -18,10 +18,35 @@ namespace facebook {
 namespace cachelib {
 
 /* Linked list implemenation */
+// template <typename T, AtomicClockListHook<T> T::*HookPtr>
+// void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
+//   // XDCHECK_NE(reinterpret_cast<uintptr_t>(&node),
+//   //            reinterpret_cast<uintptr_t>(head_));
+//   setPrev(node, nullptr);
+//   LockHolder l(*mtx_);
+
+//   T* head = head_;
+//   setNext(node, head);
+
+//   if (head_ != nullptr) {
+//     setPrev(*head_, &node);
+//   }
+//   head_ = &node;
+
+//   if (tail_ == nullptr) {
+//     tail_ = &node;
+//   }
+//   if (curr_ == nullptr) {
+//     curr_ = &node;
+//   }
+
+//   size_++;
+// }
+
+/* Linked list implemenation */
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
-  // XDCHECK_NE(reinterpret_cast<uintptr_t>(&node),
-  //            reinterpret_cast<uintptr_t>(head_));
+
   setPrev(node, nullptr);
   LockHolder l(*mtx_);
 
@@ -185,10 +210,8 @@ T* AtomicClockList<T, HookPtr>::getEvictionCandidate() noexcept {
 #define USE_MYCLOCK_ATOMIC
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
-  LockHolder l(*mtx_);
-  // printf("curr = %p, %d %d, size %d, list %p\n", curr_.load(), bufIdx_.load(),
-  //        nEvictionCandidates_.load(), size_.load(), this);
   // TODO: this can be a race condition
+  LockHolder l(*mtx_);
   if (bufIdx_.load() < nEvictionCandidates_.load()) {
     return;
   }
@@ -204,6 +227,9 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
 
   T* curr = curr_.load();
   T* next;
+  // the nodes between first and last retaiend ndoes (curr)
+  // are moved to eviction candidate buffer
+  T* firstRetainedNode = nullptr;
   while (idx < nEvictionCandidates_) {
     if (curr == head_.load()) {
       curr = tail_.load();
@@ -214,6 +240,16 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
     }
     if (isAccessed(*curr)) {
       unmarkAccessed(*curr);
+      // link curr to the first retained node
+      if (firstRetainedNode != nullptr) {
+        link(*curr, *firstRetainedNode);
+        if (firstRetainedNode == tail_.load()) {
+          tail_.store(curr);
+        }
+      } else {
+        // no node moved to eviction candidate buffer
+        firstRetainedNode = curr;
+      }
 #ifdef USE_MYCLOCK_ATOMIC
       curr = getPrev(*curr);
 #else
@@ -229,12 +265,15 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
         printf("error2 %p %p\n", getPrev(*curr), getNext(*curr));
         abort();
       }
-      unlink(*curr);
-      setNext(*curr, nullptr);
-      setPrev(*curr, nullptr);
+      // unlink(*curr);
+      // setNext(*curr, nullptr);
+      // setPrev(*curr, nullptr);
       curr = next;
     }
   }
+  
+  link(*curr, *firstRetainedNode);
+
   // printf("curr = %p, %d %d\n", curr, idx, nEvictionCandidates_.load());
   curr_.store(curr);
 }

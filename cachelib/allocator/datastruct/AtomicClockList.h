@@ -266,6 +266,11 @@ class AtomicClockList {
   // previous.
   void unlink(const T& node) noexcept;
 
+  void link(T& prev, T& next) noexcept {
+    prev.setNext(next);
+    next.setPrev(prev);
+  }
+
   void prepareEvictionCandidates() noexcept;
 
   void markAccessed(T& node) noexcept {

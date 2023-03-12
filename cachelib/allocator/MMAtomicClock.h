@@ -200,6 +200,8 @@ class MMAtomicClock {
       LockedIterator& operator++() {
         // no impact for clock
         candidate_ = fifo_->getEvictionCandidate();
+        candidate_->setNext(nullptr);
+        candidate_->setPrev(nullptr);        
         return *this;
       };
 
@@ -255,10 +257,12 @@ class MMAtomicClock {
 
       // create an lru iterator with the lock being held.
       LockedIterator(FRList* fifo)
-          : fifo_(fifo),
-            candidate_(fifo_->getEvictionCandidate()){};
+          : fifo_(fifo), candidate_(fifo_->getEvictionCandidate()) {
+        candidate_->setNext(nullptr);
+        candidate_->setPrev(nullptr);
+      };
 
-            // l_(std::move(l))
+      // l_(std::move(l))
 
       // only the container can create iterators
       friend Container<T, HookPtr>;
@@ -269,7 +273,7 @@ class MMAtomicClock {
       T* candidate_;
 
       // lock protecting the validity of the iterator
-      LockHolder l_;
+      // LockHolder l_;
     };
 
     // records the information that the node was accessed. This could bump up
