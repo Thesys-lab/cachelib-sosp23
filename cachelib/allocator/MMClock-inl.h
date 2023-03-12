@@ -273,7 +273,7 @@ template <typename T, MMClock::Hook<T> T::*HookPtr>
 void MMClock::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {
   T& node = *it;
   XDCHECK(node.isInMMContainer());
-  ++it;
+  // ++it;
   removeLocked(node);
 }
 
