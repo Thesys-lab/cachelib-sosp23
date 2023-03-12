@@ -58,6 +58,16 @@ set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../opt/cachelib/lib/cmake/"
                       "${CMAKE_CURRENT_SOURCE_DIR}/../opt/cachelib/"
 )
 
+option (FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)
+if (${FORCE_COLORED_OUTPUT})
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        add_compile_options (-fdiagnostics-color=always)
+    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        add_compile_options (-fcolor-diagnostics)
+    endif ()
+endif ()
+
+
 
 ############## end of new changes ################
 
@@ -101,6 +111,7 @@ set(CMAKE_MODULE_PATH
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 # include(fb_cxx_flags)
 message(STATUS "Update CXXFLAGS: ${CMAKE_CXX_FLAGS}")
 
@@ -185,6 +196,10 @@ endfunction()
 #     #${XBLOOM_THRIFT_FILES}
 #  )
 #add_dependencies(thrift_generated_files common_thrift_files)
+# function(add_thrift_file PREFIX THRIFT_RELATIVE_PATH CPP_OPTION)
+# endfunction()
+
+
 function(add_thrift_file PREFIX THRIFT_RELATIVE_PATH CPP_OPTION)
 
   # Get the basename of the thrift file
@@ -296,10 +311,10 @@ add_subdirectory (common)
 add_subdirectory (shm)
 add_subdirectory (navy)
 add_subdirectory (allocator)
-add_subdirectory (datatype)
-add_subdirectory (compact_cache)
-add_subdirectory (benchmarks)
-add_subdirectory (cachebench)
+# add_subdirectory (datatype)
+# add_subdirectory (compact_cache)
+# add_subdirectory (benchmarks)
+# add_subdirectory (cachebench)
 
 # Install the source header files
 install(

@@ -24,5 +24,9 @@ cachelib/external/googletest/
 cachelib/external/sparsemap/
 cachelib/external/fizz/
 
+opt2/cachelib/
 mybench/_build/
 build/
+build2/
+_build2/
+result/
