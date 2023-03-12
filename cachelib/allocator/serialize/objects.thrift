@@ -156,6 +156,29 @@ struct MMClockCollection {
   1: required map<i32, map<i32, MMClockObject>> pools,
 }
 
+struct MMAtomicClockConfig {
+  2: required bool updateOnWrite,
+  3: required i32 lruInsertionPointSpec,
+  4: bool updateOnRead = true,
+  5: bool tryLockUpdate = false,
+}
+
+struct MMAtomicClockObject {
+  1: required MMAtomicClockConfig config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  6: required i64 insertionPoint,
+  7: required i64 tailSize,
+  8: required AtomicClockListObject fifo,
+  9: required i64 compressedInsertionPoint,
+}
+
+struct MMAtomicClockCollection {
+  1: required map<i32, map<i32, MMAtomicClockObject>> pools,
+}
+
 struct MMQDLPConfig {
   2: required bool updateOnWrite,
   3: required i32 lruInsertionPointSpec,
