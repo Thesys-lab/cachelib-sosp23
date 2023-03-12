@@ -252,24 +252,12 @@ class AtomicClockList {
   Iterator end() const noexcept;
   Iterator rend() const noexcept;
 
-  // // eviction iterator
-  // Iterator evictBegin() noexcept;
-
-  // bool isCurrAtTail() const noexcept { return curr_hand_ == tail_; }
-
-  // void setCurrHand(T* node) noexcept { curr_hand_ = node; }
-
   T* getEvictionCandidate() noexcept;
 
  private:
   // unlinks the node from the linked list. Does not correct the next and
   // previous.
   void unlink(const T& node) noexcept;
-
-  void link(T& prev, T& next) noexcept {
-    prev.setNext(next);
-    next.setPrev(prev);
-  }
 
   void prepareEvictionCandidates() noexcept;
 

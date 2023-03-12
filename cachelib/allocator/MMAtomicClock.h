@@ -200,8 +200,6 @@ class MMAtomicClock {
       LockedIterator& operator++() {
         // no impact for clock
         candidate_ = fifo_->getEvictionCandidate();
-        candidate_->setNext(nullptr);
-        candidate_->setPrev(nullptr);        
         return *this;
       };
 
@@ -258,8 +256,14 @@ class MMAtomicClock {
       // create an lru iterator with the lock being held.
       LockedIterator(FRList* fifo)
           : fifo_(fifo), candidate_(fifo_->getEvictionCandidate()) {
-        candidate_->setNext(nullptr);
-        candidate_->setPrev(nullptr);
+        // T* prev = fifo_->getPrev(*candidate_);
+        // T* next = fifo_->getNext(*candidate_);
+        // if (prev != nullptr) {
+        //   printf("prev: %p\n", prev);
+        // }
+        // if (next != nullptr) {
+        //   printf("next: %p\n", next);
+        // }
       };
 
       // l_(std::move(l))

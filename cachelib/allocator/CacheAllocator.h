@@ -2156,6 +2156,7 @@ extern template class CacheAllocator<Lru2QCacheTrait>;
 extern template class CacheAllocator<TinyLFUCacheTrait>;
 
 extern template class CacheAllocator<ClockCacheTrait>;
+extern template class CacheAllocator<AtomicClockCacheTrait>;
 
 extern template class CacheAllocator<QDLPCacheTrait>;
 

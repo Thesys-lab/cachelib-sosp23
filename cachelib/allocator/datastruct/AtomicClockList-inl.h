@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
+#include "AtomicClockList.h"
+
 namespace facebook {
 namespace cachelib {
 
 /* Linked list implemenation */
 // template <typename T, AtomicClockListHook<T> T::*HookPtr>
 // void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
-//   // XDCHECK_NE(reinterpret_cast<uintptr_t>(&node),
-//   //            reinterpret_cast<uintptr_t>(head_));
 //   setPrev(node, nullptr);
 //   LockHolder l(*mtx_);
 
@@ -50,19 +50,22 @@ void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
   setPrev(node, nullptr);
   LockHolder l(*mtx_);
 
-  T* head = head_;
+  T* head = head_.load();
   setNext(node, head);
 
-  if (head_ != nullptr) {
-    setPrev(*head_, &node);
+  while (!head_.compare_exchange_weak(head, &node)) {
+    setNext(node, head);
   }
-  head_ = &node;
 
-  if (tail_ == nullptr) {
-    tail_ = &node;
-  }
-  if (curr_ == nullptr) {
-    curr_ = &node;
+  if (head != nullptr) {
+    setPrev(*head, &node);
+  } else {
+    XDCHECK_EQ(tail_, nullptr);
+    XDCHECK_EQ(curr_, nullptr);
+
+    T* tail = nullptr, *curr = nullptr;
+    tail_.compare_exchange_strong(tail, &node);
+    curr_.compare_exchange_strong(curr, &node);
   }
 
   size_++;
@@ -86,30 +89,31 @@ void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
 //   size_++;
 // }
 
-template <typename T, AtomicClockListHook<T> T::*HookPtr>
-void AtomicClockList<T, HookPtr>::insertBefore(T& nextNode, T& node) noexcept {
-  XDCHECK_NE(reinterpret_cast<uintptr_t>(&nextNode),
-             reinterpret_cast<uintptr_t>(&node));
-  XDCHECK(getNext(node) == nullptr);
-  XDCHECK(getPrev(node) == nullptr);
+// template <typename T, AtomicClockListHook<T> T::*HookPtr>
+// void AtomicClockList<T, HookPtr>::insertBefore(T& nextNode, T& node) noexcept
+// {
+//   XDCHECK_NE(reinterpret_cast<uintptr_t>(&nextNode),
+//              reinterpret_cast<uintptr_t>(&node));
+//   XDCHECK(getNext(node) == nullptr);
+//   XDCHECK(getPrev(node) == nullptr);
 
-  LockHolder l(*mtx_);
-  auto* const prev = getPrev(nextNode);
+//   LockHolder l(*mtx_);
+//   auto* const prev = getPrev(nextNode);
 
-  XDCHECK_NE(reinterpret_cast<uintptr_t>(prev),
-             reinterpret_cast<uintptr_t>(&node));
+//   XDCHECK_NE(reinterpret_cast<uintptr_t>(prev),
+//              reinterpret_cast<uintptr_t>(&node));
 
-  setPrev(node, prev);
-  if (prev != nullptr) {
-    setNext(*prev, &node);
-  } else {
-    head_ = &node;
-  }
+//   setPrev(node, prev);
+//   if (prev != nullptr) {
+//     setNext(*prev, &node);
+//   } else {
+//     head_ = &node;
+//   }
 
-  setPrev(nextNode, &node);
-  setNext(node, &nextNode);
-  size_++;
-}
+//   setPrev(nextNode, &node);
+//   setNext(node, &nextNode);
+//   size_++;
+// }
 
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::unlink(const T& node) noexcept {
@@ -197,20 +201,22 @@ void AtomicClockList<T, HookPtr>::moveToHead(T& node) noexcept {
 
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 T* AtomicClockList<T, HookPtr>::getEvictionCandidate() noexcept {
+  // TODO it may happen that the prepare happen while some other threads are 
+  // still using the old eviction candidates. This is not a correctness issue
+  // LockHolder l(*mtx_);
   size_t idx = bufIdx_.fetch_add(1);
+  T* ret = evictCandidateBuf_[idx];
   while (idx >= nEvictionCandidates_.load()) {
     prepareEvictionCandidates();
-    idx = 0;
+    ret = evictCandidateBuf_[0];
     bufIdx_.store(1);
   }
-
-  return evictCandidateBuf_[idx];
+  return ret;
 }
 
 #define USE_MYCLOCK_ATOMIC
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
-  // TODO: this can be a race condition
   LockHolder l(*mtx_);
   if (bufIdx_.load() < nEvictionCandidates_.load()) {
     return;
@@ -229,7 +235,7 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
   T* next;
   // the nodes between first and last retaiend ndoes (curr)
   // are moved to eviction candidate buffer
-  T* firstRetainedNode = nullptr;
+  T* firstRetainedNode = curr;
   while (idx < nEvictionCandidates_) {
     if (curr == head_.load()) {
       curr = tail_.load();
@@ -240,16 +246,6 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
     }
     if (isAccessed(*curr)) {
       unmarkAccessed(*curr);
-      // link curr to the first retained node
-      if (firstRetainedNode != nullptr) {
-        link(*curr, *firstRetainedNode);
-        if (firstRetainedNode == tail_.load()) {
-          tail_.store(curr);
-        }
-      } else {
-        // no node moved to eviction candidate buffer
-        firstRetainedNode = curr;
-      }
 #ifdef USE_MYCLOCK_ATOMIC
       curr = getPrev(*curr);
 #else
@@ -265,15 +261,13 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
         printf("error2 %p %p\n", getPrev(*curr), getNext(*curr));
         abort();
       }
-      // unlink(*curr);
-      // setNext(*curr, nullptr);
-      // setPrev(*curr, nullptr);
+
+      unlink(*curr);
+      setNext(*curr, nullptr);
+      setPrev(*curr, nullptr);
       curr = next;
     }
   }
-  
-  link(*curr, *firstRetainedNode);
-
   // printf("curr = %p, %d %d\n", curr, idx, nEvictionCandidates_.load());
   curr_.store(curr);
 }
@@ -345,15 +339,5 @@ AtomicClockList<T, HookPtr>::rend() const noexcept {
       nullptr, Iterator::Direction::FROM_TAIL, *this);
 }
 
-// template <typename T, AtomicClockListHook<T> T::*HookPtr>
-// typename AtomicClockList<T, HookPtr>::Iterator
-// AtomicClockList<T, HookPtr>::evictBegin() noexcept {
-//   if (curr_ == nullptr) {
-//     // printf("size %ld list %p reset hand to tail\n", size_, this);
-//     curr_ = tail_;
-//   }
-//   return AtomicClockList<T, HookPtr>::Iterator(
-//       curr_, Iterator::Direction::FROM_TAIL, *this);
-// }
 }  // namespace cachelib
 }  // namespace facebook
