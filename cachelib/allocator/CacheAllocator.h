@@ -2182,6 +2182,7 @@ using Lru2QAllocator = CacheAllocator<Lru2QCacheTrait>;
 using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
 
 using ClockAllocator = CacheAllocator<ClockCacheTrait>;
+using AtomicClockAllocator = CacheAllocator<AtomicClockCacheTrait>;
 
 using QDLPAllocator = CacheAllocator<QDLPCacheTrait>;
 } // namespace cachelib

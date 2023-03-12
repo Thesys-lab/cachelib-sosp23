@@ -19,6 +19,7 @@
 #include "cachelib/allocator/MMLru.h"
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
+#include "cachelib/allocator/MMAtomicClock.h"
 #include "cachelib/allocator/MMQDLP.h"
 
 namespace facebook {
@@ -30,6 +31,7 @@ const int MM2Q::kId = 2;
 const int MMTinyLFU::kId = 3;
 
 const int MMClock::kId = 4;
+const int MMAtomicClock::kId = 6;
 const int MMQDLP::kId = 5;
 
 // AccessType

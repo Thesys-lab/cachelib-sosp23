@@ -20,6 +20,7 @@
 #include "cachelib/allocator/MMLru.h"
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
+#include "cachelib/allocator/MMAtomicClock.h"
 #include "cachelib/allocator/MMQDLP.h"
 #include "cachelib/common/Mutex.h"
 
@@ -59,6 +60,12 @@ struct TinyLFUCacheTrait {
 
 struct ClockCacheTrait {
   using MMType = MMClock;
+  using AccessType = ChainedHashTable;
+  using AccessTypeLocks = SharedMutexBuckets;
+};
+
+struct AtomicClockCacheTrait {
+  using MMType = MMAtomicClock;
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
 };

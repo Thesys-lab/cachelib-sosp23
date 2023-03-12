@@ -24,6 +24,7 @@ template class CacheAllocator<Lru2QCacheTrait>;
 template class CacheAllocator<TinyLFUCacheTrait>;
 
 template class CacheAllocator<ClockCacheTrait>;
+template class CacheAllocator<AtomicClockCacheTrait>;
 
 template class CacheAllocator<QDLPCacheTrait>;
 
