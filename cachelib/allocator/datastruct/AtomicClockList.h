@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <folly/MPMCQueue.h>
 #include <folly/logging/xlog.h>
 
 #pragma GCC diagnostic push
@@ -161,7 +162,7 @@ class AtomicClockList {
   // @param nextNode    node before which to insert
   // @param node        node to insert
   // @note nextNode must be in the list and node must not be in the list
-  void insertBefore(T& nextNode, T& node) noexcept;
+  // void insertBefore(T& nextNode, T& node) noexcept;
 
   // removes the node completely from the linked list and cleans up the node
   // appropriately by setting its next and prev as nullptr.
@@ -279,8 +280,6 @@ class AtomicClockList {
 
   const static size_t nMaxEvictionCandidates_ = 64;
 
-  std::atomic<size_t> nEvictionCandidates_{0};
-
   // head of the linked list
   std::atomic<T*> head_{nullptr};
 
@@ -293,9 +292,31 @@ class AtomicClockList {
   // size of the list
   std::atomic<size_t> size_{0};
 
+
+#define USE_MYCLOCK_ATOMIC
+// #define USE_MPMC_QUEUE
+
+#ifndef USE_MPMC_QUEUE
+  std::atomic<size_t> nEvictionCandidates_{0};
+
   std::atomic<T*> evictCandidateBuf_[nMaxEvictionCandidates_];
 
   std::atomic<size_t> bufIdx_{nMaxEvictionCandidates_};
+
+#else
+  folly::MPMCQueue<T*> evictCandidateQueue_{nMaxEvictionCandidates_};
+
+  size_t nCandidateToPrepare() {
+    int n = 0;
+    n = (size_.load() < nMaxEvictionCandidates_ ? size_.load()
+                                                : nMaxEvictionCandidates_);
+    n /= 4;
+    if (n == 0) {
+      n = 1;
+    }
+    return n;
+  }
+#endif
 };
 }  // namespace cachelib
 }  // namespace facebook

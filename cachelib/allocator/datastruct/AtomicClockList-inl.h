@@ -46,9 +46,8 @@ namespace cachelib {
 /* Linked list implemenation */
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
-
   setPrev(node, nullptr);
-  LockHolder l(*mtx_);
+  // LockHolder l(*mtx_);
 
   T* head = head_.load();
   setNext(node, head);
@@ -63,7 +62,7 @@ void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
     XDCHECK_EQ(tail_, nullptr);
     XDCHECK_EQ(curr_, nullptr);
 
-    T* tail = nullptr, *curr = nullptr;
+    T *tail = nullptr, *curr = nullptr;
     tail_.compare_exchange_strong(tail, &node);
     curr_.compare_exchange_strong(curr, &node);
   }
@@ -199,25 +198,94 @@ void AtomicClockList<T, HookPtr>::moveToHead(T& node) noexcept {
   linkAtHead(node);
 }
 
+#ifdef USE_MPMC_QUEUE
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 T* AtomicClockList<T, HookPtr>::getEvictionCandidate() noexcept {
-  // TODO it may happen that the prepare happen while some other threads are 
+  if (evictCandidateQueue_.sizeGuess() < nMaxEvictionCandidates_ / 4) {
+    prepareEvictionCandidates();
+  }
+
+  T *ret = nullptr;
+  int nTries = 0;
+  while (!evictCandidateQueue_.read(ret)) {
+    if (nTries++ > 10) {
+      abort();
+    }
+    prepareEvictionCandidates();
+  }
+
+  return ret;
+}
+
+template <typename T, AtomicClockListHook<T> T::*HookPtr>
+void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
+  LockHolder l(*mtx_);
+  if (evictCandidateQueue_.sizeGuess() > nMaxEvictionCandidates_ / 4 * 3) {
+    return;
+  }
+  int nCandidate = nCandidateToPrepare();
+
+  int n_iters = 0;
+
+  T* curr = curr_.load();
+  T* next;
+  T* firstRetainedNode = curr;
+  while (nCandidate > 0) {
+    if (curr == head_.load()) {
+      curr = tail_.load();
+      if (n_iters++ > 2) {
+        printf("n_iters = %d\n", n_iters);
+        abort();
+      }
+    }
+    if (isAccessed(*curr)) {
+      unmarkAccessed(*curr);
+#ifdef USE_MYCLOCK_ATOMIC
+      curr = getPrev(*curr);
+#else
+      next = getPrev(*curr);
+      // move the node to the head of the list
+      moveToHead(*curr);
+      curr = next;
+#endif
+    } else {
+      nCandidate--;
+      evictCandidateQueue_.write(curr);
+      next = getPrev(*curr);
+      if (next == nullptr) {
+        printf("error2 %p %p\n", getPrev(*curr), getNext(*curr));
+        abort();
+      }
+
+      unlink(*curr);
+      setNext(*curr, nullptr);
+      setPrev(*curr, nullptr);
+      curr = next;
+    }
+  }
+  // printf("curr = %p, %d %d\n", curr, idx, nEvictionCandidates_.load());
+  curr_.store(curr);
+}
+#else
+template <typename T, AtomicClockListHook<T> T::*HookPtr>
+T* AtomicClockList<T, HookPtr>::getEvictionCandidate() noexcept {
+  // TODO it may happen that the prepare happen while some other threads are
   // still using the old eviction candidates. This is not a correctness issue
-  // LockHolder l(*mtx_);
+  LockHolder l(*mtx_);
   size_t idx = bufIdx_.fetch_add(1);
   T* ret = evictCandidateBuf_[idx];
   while (idx >= nEvictionCandidates_.load()) {
     prepareEvictionCandidates();
-    ret = evictCandidateBuf_[0];
+    idx = 0;
+    ret = evictCandidateBuf_[idx];
     bufIdx_.store(1);
   }
   return ret;
 }
 
-#define USE_MYCLOCK_ATOMIC
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
-  LockHolder l(*mtx_);
+  // LockHolder l(*mtx_);
   if (bufIdx_.load() < nEvictionCandidates_.load()) {
     return;
   }
@@ -268,9 +336,9 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
       curr = next;
     }
   }
-  // printf("curr = %p, %d %d\n", curr, idx, nEvictionCandidates_.load());
   curr_.store(curr);
 }
+#endif
 
 /* Iterator Implementation */
 template <typename T, AtomicClockListHook<T> T::*HookPtr>

@@ -264,6 +264,8 @@ class MMAtomicClock {
         // if (next != nullptr) {
         //   printf("next: %p\n", next);
         // }
+        XDCHECK_EQ(fifo_->getPrev(*candidate_), nullptr);
+        XDCHECK_EQ(fifo_->getNext(*candidate_), nullptr);
       };
 
       // l_(std::move(l))
