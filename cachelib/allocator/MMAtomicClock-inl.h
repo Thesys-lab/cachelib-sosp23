@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+// #include "cachelib/allocator/MMAtomicClock.h"
+
+
 namespace facebook {
 namespace cachelib {
 
@@ -187,30 +190,30 @@ template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
 bool MMAtomicClock::Container<T, HookPtr>::add(T& node) noexcept {
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
-  // if (node.isInMMContainer()) {
-  //   return false;
-  // }
-  // fifo_.linkAtHead(node);
-  // node.markInMMContainer();
-  // setUpdateTime(node, currTime);
-  // unmarkAccessed(node);
-  // return true;
+  if (node.isInMMContainer()) {
+    return false;
+  }
+  fifo_.linkAtHead(node);
+  node.markInMMContainer();
+  setUpdateTime(node, currTime);
+  unmarkAccessed(node);
+  return true;
 
-  return lruMutex_->lock_combine([this, &node, currTime]() {
-    if (node.isInMMContainer()) {
-      return false;
-    }
-    // if (config_.lruInsertionPointSpec == 0 || insertionPoint_ == nullptr){
-    fifo_.linkAtHead(node);
-    // } else {
-    //   fifo_.insertBefore(*insertionPoint_, node);
-    // }
-    node.markInMMContainer();
-    setUpdateTime(node, currTime);
-    unmarkAccessed(node);
-    // updateLruInsertionPoint();
-    return true;
-  });
+  // return lruMutex_->lock_combine([this, &node, currTime]() {
+  //   if (node.isInMMContainer()) {
+  //     return false;
+  //   }
+  //   // if (config_.lruInsertionPointSpec == 0 || insertionPoint_ == nullptr){
+  //   fifo_.linkAtHead(node);
+  //   // } else {
+  //   //   fifo_.insertBefore(*insertionPoint_, node);
+  //   // }
+  //   node.markInMMContainer();
+  //   setUpdateTime(node, currTime);
+  //   unmarkAccessed(node);
+  //   // updateLruInsertionPoint();
+  //   return true;
+  // });
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>

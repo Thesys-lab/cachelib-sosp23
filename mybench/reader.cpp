@@ -109,6 +109,8 @@ int read_trace(struct reader *reader, struct request *req) {
 
   if (reader->trace_start_ts == -1) {
     reader->trace_start_ts = req->timestamp;
+    // printf("reader %d first req ts %d, obj %ld, size %d\n", reader->reader_id,
+    //        req->timestamp, *(uint64_t *)req->key, req->val_len);
   }
 
   req->timestamp = req->timestamp - reader->trace_start_ts + 1;
@@ -125,7 +127,7 @@ int read_oracleGeneral_trace(struct reader *reader, struct request *req) {
 
   uint64_t obj_id = *(uint64_t *)(record + 4);
   // used to make sure each reader has different keys
-  obj_id = obj_id % (uint64_t) UINT32_MAX + reader->reader_id * 1000000000ULL;
+  obj_id = obj_id % (uint64_t)UINT32_MAX + reader->reader_id * 1000000000ULL;
   *(uint64_t *)req->key = obj_id;
 
   req->key_len = 8;

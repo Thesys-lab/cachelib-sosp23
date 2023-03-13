@@ -23,9 +23,11 @@
 #pragma GCC diagnostic ignored "-Wconversion"
 #include "cachelib/allocator/serialize/gen-cpp2/objects_types.h"
 #pragma GCC diagnostic pop
+#include <folly/lang/Aligned.h>
 #include <folly/synchronization/DistributedMutex.h>
 
 #include <atomic>
+#include <algorithm>
 
 #include "cachelib/common/CompilerUtils.h"
 #include "cachelib/common/Mutex.h"
@@ -292,30 +294,34 @@ class AtomicClockList {
   // size of the list
   std::atomic<size_t> size_{0};
 
-
 #define USE_MYCLOCK_ATOMIC
-// #define USE_MPMC_QUEUE
+#define USE_MPMC_QUEUE
 
 #ifndef USE_MPMC_QUEUE
   std::atomic<size_t> nEvictionCandidates_{0};
 
-  std::atomic<T*> evictCandidateBuf_[nMaxEvictionCandidates_];
+  std::atomic<T*> evictCandidateBuf_[nMaxEvictionCandidates_]{nullptr};
 
   std::atomic<size_t> bufIdx_{nMaxEvictionCandidates_};
+
+  size_t nCandidateToPrepare() {
+    size_t n = 0;
+    n = std::min(size_.load() / 4, nMaxEvictionCandidates_);
+    n = std::max(n, 1ul);
+    return n;
+  }
 
 #else
   folly::MPMCQueue<T*> evictCandidateQueue_{nMaxEvictionCandidates_};
 
+  /* different from previous one - we load 1/4 of the nMax */
   size_t nCandidateToPrepare() {
-    int n = 0;
-    n = (size_.load() < nMaxEvictionCandidates_ ? size_.load()
-                                                : nMaxEvictionCandidates_);
-    n /= 4;
-    if (n == 0) {
-      n = 1;
-    }
+    size_t n = 0;
+    n = std::min(size_.load(), nMaxEvictionCandidates_);
+    n = std::max(n / 4, 1ul);
     return n;
   }
+
 #endif
 };
 }  // namespace cachelib
