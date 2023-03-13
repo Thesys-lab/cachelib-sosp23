@@ -205,13 +205,14 @@ T* AtomicClockList<T, HookPtr>::getEvictionCandidate() noexcept {
     prepareEvictionCandidates();
   }
 
-  T *ret = nullptr;
+  T* ret = nullptr;
   int nTries = 0;
   while (!evictCandidateQueue_.read(ret)) {
-    if (nTries++ > 10) {
-      abort();
+    if (nTries++ < 10) {
+      prepareEvictionCandidates();
+    } else {
+      printf("thread %ld has %d attempts\n", pthread_self(), nTries);
     }
-    prepareEvictionCandidates();
   }
 
   return ret;
@@ -253,8 +254,9 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
       evictCandidateQueue_.write(curr);
       next = getPrev(*curr);
       if (next == nullptr) {
-        printf("error2 %p %p\n", getPrev(*curr), getNext(*curr));
-        abort();
+        // this can happen if head_ is updated to a newly inserted node,
+        // but the old head has not pointed to the new head yet.
+        next = tail_.load();
       }
 
       unlink(*curr);

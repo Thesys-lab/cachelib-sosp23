@@ -19,8 +19,8 @@ namespace cachelib {
 
 /* Container Interface Implementation */
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-MMAtomicClock::Container<T, HookPtr>::Container(serialization::MMAtomicClockObject object,
-                                        PtrCompressor compressor)
+MMAtomicClock::Container<T, HookPtr>::Container(
+    serialization::MMAtomicClockObject object, PtrCompressor compressor)
     : compressor_(std::move(compressor)),
       fifo_(*object.fifo(), compressor_),
       insertionPoint_(compressor_.unCompress(
@@ -34,8 +34,8 @@ MMAtomicClock::Container<T, HookPtr>::Container(serialization::MMAtomicClockObje
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-bool MMAtomicClock::Container<T, HookPtr>::recordAccess(T& node,
-                                                AccessMode mode) noexcept {
+bool MMAtomicClock::Container<T, HookPtr>::recordAccess(
+    T& node, AccessMode mode) noexcept {
   if ((mode == AccessMode::kWrite && !config_.updateOnWrite) ||
       (mode == AccessMode::kRead && !config_.updateOnRead)) {
     return false;
@@ -48,9 +48,7 @@ bool MMAtomicClock::Container<T, HookPtr>::recordAccess(T& node,
       markAccessed(node);
     }
 
-
     setUpdateTime(node, curr);
-
 
     auto func = [this, &node, curr]() {
       reconfigureLocked(curr);
@@ -69,7 +67,7 @@ bool MMAtomicClock::Container<T, HookPtr>::recordAccess(T& node,
 
     // if the tryLockUpdate optimization is on, and we were able to grab the
     // lock, execute the critical section and return true, else return false
-    
+
     // if the tryLockUpdate optimization is off, we always execute the
     // critical section and return true
     // if (config_.tryLockUpdate) {
@@ -88,7 +86,8 @@ bool MMAtomicClock::Container<T, HookPtr>::recordAccess(T& node,
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-cachelib::EvictionAgeStat MMAtomicClock::Container<T, HookPtr>::getEvictionAgeStat(
+cachelib::EvictionAgeStat
+MMAtomicClock::Container<T, HookPtr>::getEvictionAgeStat(
     uint64_t projectedLength) const noexcept {
   return lruMutex_->lock_combine([this, projectedLength]() {
     return getEvictionAgeStatLocked(projectedLength);
@@ -129,18 +128,21 @@ void MMAtomicClock::Container<T, HookPtr>::setConfig(const Config& newConfig) {
   //   }
   //   nextReconfigureTime_ = config_.mmReconfigureIntervalSecs.count() == 0
   //                              ? std::numeric_limits<Time>::max()
-  //                              : static_cast<Time>(util::getCurrentTimeSec()) +
+  //                              : static_cast<Time>(util::getCurrentTimeSec())
+  //                              +
   //                                    config_.mmReconfigureIntervalSecs.count();
   // });
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-typename MMAtomicClock::Config MMAtomicClock::Container<T, HookPtr>::getConfig() const {
+typename MMAtomicClock::Config MMAtomicClock::Container<T, HookPtr>::getConfig()
+    const {
   return lruMutex_->lock_combine([this]() { return config_; });
 }
 
 // template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-// void MMAtomicClock::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
+// void MMAtomicClock::Container<T, HookPtr>::updateLruInsertionPoint() noexcept
+// {
 //   if (config_.lruInsertionPointSpec == 0) {
 //     return;
 //   }
@@ -185,11 +187,20 @@ template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
 bool MMAtomicClock::Container<T, HookPtr>::add(T& node) noexcept {
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
+  // if (node.isInMMContainer()) {
+  //   return false;
+  // }
+  // fifo_.linkAtHead(node);
+  // node.markInMMContainer();
+  // setUpdateTime(node, currTime);
+  // unmarkAccessed(node);
+  // return true;
+
   return lruMutex_->lock_combine([this, &node, currTime]() {
     if (node.isInMMContainer()) {
       return false;
     }
-    // if (config_.lruInsertionPointSpec == 0 || insertionPoint_ == nullptr) {
+    // if (config_.lruInsertionPointSpec == 0 || insertionPoint_ == nullptr){
     fifo_.linkAtHead(node);
     // } else {
     //   fifo_.insertBefore(*insertionPoint_, node);
@@ -223,7 +234,8 @@ void MMAtomicClock::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-void MMAtomicClock::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept {
+void MMAtomicClock::Container<T, HookPtr>::ensureNotInsertionPoint(
+    T& node) noexcept {
   // If we are removing the insertion point node, grow tail before we remove
   // so that insertionPoint_ is valid (or nullptr) after removal
   if (&node == insertionPoint_) {
@@ -279,7 +291,8 @@ void MMAtomicClock::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-bool MMAtomicClock::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
+bool MMAtomicClock::Container<T, HookPtr>::replace(T& oldNode,
+                                                   T& newNode) noexcept {
   return lruMutex_->lock_combine([this, &oldNode, &newNode]() {
     if (!oldNode.isInMMContainer() || newNode.isInMMContainer()) {
       return false;
@@ -288,7 +301,7 @@ bool MMAtomicClock::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexc
     // fifo_.replace(oldNode, newNode);
     fifo_.remove(oldNode);
     fifo_.linkAtHead(newNode);
-    
+
     oldNode.unmarkInMMContainer();
     newNode.markInMMContainer();
     setUpdateTime(newNode, updateTime);
@@ -312,8 +325,8 @@ bool MMAtomicClock::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexc
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-serialization::MMAtomicClockObject MMAtomicClock::Container<T, HookPtr>::saveState()
-    const noexcept {
+serialization::MMAtomicClockObject
+MMAtomicClock::Container<T, HookPtr>::saveState() const noexcept {
   serialization::MMAtomicClockConfig configObject;
   *configObject.updateOnWrite() = config_.updateOnWrite;
   *configObject.updateOnRead() = config_.updateOnRead;
@@ -330,7 +343,8 @@ serialization::MMAtomicClockObject MMAtomicClock::Container<T, HookPtr>::saveSta
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-MMContainerStat MMAtomicClock::Container<T, HookPtr>::getStats() const noexcept {
+MMContainerStat MMAtomicClock::Container<T, HookPtr>::getStats()
+    const noexcept {
   auto stat = lruMutex_->lock_combine([this]() {
     auto* tail = fifo_.getTail();
 
@@ -341,21 +355,16 @@ MMContainerStat MMAtomicClock::Container<T, HookPtr>::getStats() const noexcept 
     // the rest of the parameters are 0, so we don't need the critical section
     // to return them
     return folly::make_array(fifo_.size(),
-                             tail == nullptr ? 0 : getUpdateTime(*tail)
-                             );
+                             tail == nullptr ? 0 : getUpdateTime(*tail));
   });
-  return {stat[0] /* lru size */,
-          stat[1] /* tail time */,
+  return {stat[0] /* lru size */, stat[1] /* tail time */,
           // 0,
-          0,
-          0,
-          0,
-          0,
-          0};
+          0, 0, 0, 0, 0};
 }
 
 template <typename T, MMAtomicClock::Hook<T> T::*HookPtr>
-void MMAtomicClock::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
+void MMAtomicClock::Container<T, HookPtr>::reconfigureLocked(
+    const Time& currTime) {
   if (currTime < nextReconfigureTime_) {
     return;
   }
@@ -371,5 +380,5 @@ void MMAtomicClock::Container<T, HookPtr>::reconfigureLocked(const Time& currTim
   // lruRefreshTime_.store(lruRefreshTime, std::memory_order_relaxed);
 }
 
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook
