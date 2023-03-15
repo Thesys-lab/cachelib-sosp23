@@ -42,7 +42,6 @@ bool MMQDLP::Container<T, HookPtr>::recordAccess(T& node,
     if (!isAccessed(node)) {
       markAccessed(node);
     }
-
         setUpdateTime(node, curr);
 
     // auto func = [this, &node, curr]() {
@@ -121,7 +120,7 @@ template <typename T, MMQDLP::Hook<T> T::*HookPtr>
 bool MMQDLP::Container<T, HookPtr>::add(T& node) noexcept {
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
-  return lruMutex_->lock_combine([this, &node, currTime]() {
+  // return lruMutex_->lock_combine([this, &node, currTime]() {
     if (node.isInMMContainer()) {
       return false;
     }
@@ -134,14 +133,14 @@ bool MMQDLP::Container<T, HookPtr>::add(T& node) noexcept {
     setUpdateTime(node, currTime);
 
     return true;
-  });
+  // });
 }
 
 template <typename T, MMQDLP::Hook<T> T::*HookPtr>
 typename MMQDLP::Container<T, HookPtr>::LockedIterator
 MMQDLP::Container<T, HookPtr>::getEvictionIterator() noexcept {
-  LockHolder l(*lruMutex_);
-  return LockedIterator{std::move(l), &qdlist_};
+  // LockHolder l(*lruMutex_, std::defer_lock);
+  return LockedIterator{&qdlist_};
 }
 
 // template <typename T, MMQDLP::Hook<T> T::*HookPtr>
@@ -155,7 +154,6 @@ MMQDLP::Container<T, HookPtr>::getEvictionIterator() noexcept {
 //     fun(Iterator{qdlist_.rbegin()});
 //   }
 // }
-
 
 template <typename T, MMQDLP::Hook<T> T::*HookPtr>
 void MMQDLP::Container<T, HookPtr>::removeLocked(T& node) noexcept {

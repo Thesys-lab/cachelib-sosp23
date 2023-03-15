@@ -44,29 +44,32 @@ void AtomicDList<T, HookPtr>::linkAtHead(T& node) noexcept {
   size_++;
 }
 
+/* note that the next of the tail may not be nullptr  */
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 T* AtomicDList<T, HookPtr>::removeTail() noexcept {
-  if (size_ == 0) {
+  T* tail = tail_.load();
+  if (tail == nullptr) {
+    // empty list
     return nullptr;
   }
-
-  T* tail = tail_.load();
-  XDCHECK_EQ(getNext(*tail), nullptr);
   T* prev = getPrev(*tail);
 
   while (!tail_.compare_exchange_weak(tail, prev)) {
     prev = getPrev(*tail);
   }
 
-  size_t size = size_.fetch_sub(1);
-  if (size == 1) {
-    T* oldHead = tail;
-    head_.compare_exchange_weak(oldHead, nullptr);
-  } else {
-    setNext(*prev, nullptr);
-  }
+  // if the tail was also the head
+  T* oldHead = tail;
+  head_.compare_exchange_weak(oldHead, nullptr);
+
+  // do not do this since this object will be evicted/promoted
+  // else {
+  //   setNext(*prev, nullptr);
+  // }
 
   setPrev(*tail, nullptr);
+
+  size_--;
 
   return tail;
 }

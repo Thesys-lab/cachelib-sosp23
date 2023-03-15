@@ -45,7 +45,7 @@ class QDList {
   using LockHolder = std::unique_lock<Mutex>;
   using CompressedPtr = typename T::CompressedPtr;
   using PtrCompressor = typename T::PtrCompressor;
-  using AtomicDList = AtomicDList<T, HookPtr>;
+  using ADList = AtomicDList<T, HookPtr>;
   using RefFlags = typename T::Flags;
   using QDListObject = serialization::QDListObject;
 
@@ -54,8 +54,8 @@ class QDList {
   QDList& operator=(const QDList&) = delete;
 
   QDList(PtrCompressor compressor) noexcept {
-    pfifo_ = std::make_unique<AtomicDList>(compressor);
-    mfifo_ = std::make_unique<AtomicDList>(compressor);
+    pfifo_ = std::make_unique<ADList>(compressor);
+    mfifo_ = std::make_unique<ADList>(compressor);
   }
 
   // Restore QDList from saved state.
@@ -63,8 +63,8 @@ class QDList {
   // @param object              Save QDList object
   // @param compressor          PtrCompressor object
   QDList(const QDListObject& object, PtrCompressor compressor) {
-    pfifo_ = std::make_unique<AtomicDList>(*object.pfifo(), compressor);
-    mfifo_ = std::make_unique<AtomicDList>(*object.mfifo(), compressor);
+    pfifo_ = std::make_unique<ADList>(*object.pfifo(), compressor);
+    mfifo_ = std::make_unique<ADList>(*object.mfifo(), compressor);
   }
 
   /**
@@ -81,9 +81,9 @@ class QDList {
   //   return *(lists_[index].get());
   // }
 
-  AtomicDList& getListProbationary() const noexcept { return *pfifo_; }
+  ADList& getListProbationary() const noexcept { return *pfifo_; }
 
-  AtomicDList& getListMain() const noexcept { return *mfifo_; }
+  ADList& getListMain() const noexcept { return *mfifo_; }
 
   T* getTail() const noexcept { return pfifo_->getTail(); }
 
@@ -245,9 +245,9 @@ class QDList {
 
   // std::vector<std::unique_ptr<SingleCList>> lists_;
 
-  std::unique_ptr<AtomicDList> pfifo_;
+  std::unique_ptr<ADList> pfifo_;
 
-  std::unique_ptr<AtomicDList> mfifo_;
+  std::unique_ptr<ADList> mfifo_;
 
   mutable folly::cacheline_aligned<Mutex> mtx_;
 

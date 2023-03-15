@@ -182,8 +182,6 @@ class MMQDLP {
     Container(const Container&) = delete;
     Container& operator=(const Container&) = delete;
 
-    // using Iterator = typename FIFOList::Iterator;
-
     // context for iterating the MM container. At any given point of time,
     // there can be only one iterator active since we need to lock the LRU for
     // iteration. we can support multiple iterators at same time, by using a
@@ -224,17 +222,17 @@ class MMQDLP {
       // 2. Unlock
       void destroy() {
         // Iterator::reset();
-        if (l_.owns_lock()) {
-          l_.unlock();
-        }
+        // if (l_.owns_lock()) {
+        //   l_.unlock();
+        // }
       }
 
       // Reset this iterator to the beginning
       void resetToBegin() noexcept {
         printf("resetToBegin\n");
-        if (!l_.owns_lock()) {
-          l_.lock();
-        }
+        // if (!l_.owns_lock()) {
+        //   l_.lock();
+        // }
         // Iterator::resetToBegin();
       }
 
@@ -243,7 +241,7 @@ class MMQDLP {
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
       // create an lru iterator with the lock being held.
-      LockedIterator(LockHolder l, FIFOList* qdlist) : l_(std::move(l)) {
+      LockedIterator(FIFOList* qdlist) {
         qdlist_ = qdlist;
         candidate_ = qdlist_->getEvictionCandidate();
       }
@@ -254,9 +252,6 @@ class MMQDLP {
 
       // only the container can create iterators
       friend Container<T, HookPtr>;
-
-      // lock protecting the validity of the iterator
-      LockHolder l_;
     };
 
     // records the information that the node was accessed. This could bump up
