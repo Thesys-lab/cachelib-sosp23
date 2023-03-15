@@ -181,9 +181,7 @@ struct MMAtomicClockCollection {
 
 struct MMQDLPConfig {
   2: required bool updateOnWrite,
-  3: required i32 lruInsertionPointSpec,
   4: bool updateOnRead = true,
-  5: bool tryLockUpdate = false,
 }
 
 struct MMQDLPObject {
@@ -192,10 +190,7 @@ struct MMQDLPObject {
   // number of evictions for this MM object.
   5: i64 evictions = 0,
 
-  6: required i64 insertionPoint,
-  7: required i64 tailSize,
-  8: required DListObject fifo,
-  9: required i64 compressedInsertionPoint,
+  8: required QDListObject qdlist,
 }
 
 struct MMQDLPCollection {

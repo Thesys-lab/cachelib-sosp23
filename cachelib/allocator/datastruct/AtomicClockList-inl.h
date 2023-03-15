@@ -54,7 +54,6 @@ void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
   setPrev(node, nullptr);
 
   T* oldHead = head_.load();
-  T* oldoldHead = oldHead;
   setNext(node, oldHead);
 
   while (!head_.compare_exchange_weak(oldHead, &node)) {
