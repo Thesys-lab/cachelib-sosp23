@@ -61,7 +61,7 @@ class FOLLY_PACK_ATTR Bucket {
    private:
     friend Bucket;
 
-    Iterator() = default;
+    Iterator() = delete;
     explicit Iterator(BucketStorage::Allocation itr) : itr_{itr} {}
 
     BucketStorage::Allocation itr_;

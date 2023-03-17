@@ -417,8 +417,6 @@ class MMQDLP {
     // time.
     mutable folly::cacheline_aligned<Mutex> lruMutex_;
 
-    // const PtrCompressor compressor_{};
-
     // the fifo
     FIFOList qdlist_{};
 
