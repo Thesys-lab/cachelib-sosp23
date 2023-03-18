@@ -125,9 +125,10 @@ bool MMQDLP::Container<T, HookPtr>::add(T& node) noexcept {
       return false;
     }
 
-    qdlist_.getListProbationary().linkAtHead(node);
-    markProbationary(node);
-    unmarkMain(node);
+    // qdlist_.getListProbationary().linkAtHead(node);
+    // markProbationary(node);
+    // unmarkMain(node);
+    qdlist_.add(node);
     unmarkAccessed(node);
     node.markInMMContainer();
     setUpdateTime(node, currTime);

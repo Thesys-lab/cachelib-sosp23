@@ -19,14 +19,17 @@ namespace cachelib {
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
-  // LockHolder l(*mtx_);
+
+  size_t listSize = pfifo_->size() + mfifo_->size();
   T* curr = nullptr;
-  // if (n % 100000000 == 0)
-  //   XLOGF(INFO, "{} list {} size: {}, {}", n, (void*)this, pfifo_->size(),
-  //         mfifo_->size());
+  if (!hist_.initialized()) {
+    LockHolder l(*mtx_);
+    hist_.setFIFOSize(listSize);
+    hist_.initHashtable();
+  }
 
   while (true) {
-    if ((double)pfifo_->size() / (pfifo_->size() + mfifo_->size()) > pRatio_) {
+    if (pfifo_->size() > (double) (pfifo_->size() + mfifo_->size()) * pRatio_) {
       // evict from probationary FIFO
       while (pfifo_->size() > 0 && curr == nullptr) {
         curr = pfifo_->removeTail();
@@ -39,6 +42,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
         mfifo_->linkAtHead(*curr);
         curr = nullptr;
       } else {
+        hist_.insert(hashNode(*curr));
         return curr;
       }
     } else {

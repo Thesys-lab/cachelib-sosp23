@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <folly/AtomicHashMap.h>
 #include <folly/MPMCQueue.h>
 #include <folly/logging/xlog.h>
 
@@ -31,7 +32,9 @@
 #include <folly/synchronization/DistributedMutex.h>
 
 #include "cachelib/allocator/datastruct/AtomicDList.h"
+#include "cachelib/allocator/datastruct/AtomicFIFOHashTable.h"
 #include "cachelib/allocator/datastruct/DList.h"
+#include "cachelib/common/BloomFilter.h"
 #include "cachelib/common/CompilerUtils.h"
 #include "cachelib/common/Mutex.h"
 
@@ -90,6 +93,18 @@ class QDList {
   size_t size() const noexcept { return pfifo_->size() + mfifo_->size(); }
 
   T* getEvictionCandidate() noexcept;
+
+  void add(T& node) noexcept {
+    if (hist_.initialized() && hist_.contains(hashNode(node))) {
+        mfifo_->linkAtHead(node);
+        markMain(node);
+        unmarkProbationary(node);
+    } else {
+      pfifo_->linkAtHead(node);
+      markProbationary(node);
+      unmarkMain(node);
+    }
+  }
 
   // Bit MM_BIT_0 is used to record if the item is hot.
   void markProbationary(T& node) noexcept {
@@ -164,7 +179,8 @@ class QDList {
   //   Iterator(Iterator&&) noexcept = default;
   //   Iterator& operator=(Iterator&&) noexcept = default;
 
-  //   // moves the iterator forward and backward. Calling ++ once the iterator
+  //   // moves the iterator forward and backward. Calling ++ once the
+  //   iterator
   //   // has reached the end is undefined.
   //   Iterator& operator++() {  goForward(); return *this; };
   //   Iterator& operator--() { goBackward(); return *this; };
@@ -231,19 +247,14 @@ class QDList {
   // Iterator rend() const noexcept;
 
  private:
-  /* different from previous one - we load 1/4 of the nMax */
-  // size_t nCandidateToPrepare() {
-  //   size_t n = 0;
-  //   n = std::min(size_.load(), nMaxEvictionCandidates_);
-  //   n = std::max(n / 4, 1ul);
-  //   return n;
-  // }
+  static uint32_t hashNode(const T& node) noexcept {
+    return static_cast<uint32_t>(
+        folly::hasher<folly::StringPiece>()(node.getKey()));
+  }
 
   void prepEvictCandProbationary() noexcept;
 
   void prepEvictCandMain() noexcept;
-
-  // std::vector<std::unique_ptr<SingleCList>> lists_;
 
   std::unique_ptr<ADList> pfifo_;
 
@@ -251,12 +262,10 @@ class QDList {
 
   mutable folly::cacheline_aligned<Mutex> mtx_;
 
-  const static size_t nMaxEvictionCandidates_ = 64;
-
-  folly::MPMCQueue<T*> evictCandQueueP_{nMaxEvictionCandidates_};
-  folly::MPMCQueue<T*> evictCandQueueM_{nMaxEvictionCandidates_};
-
   constexpr static double pRatio_ = 0.1;
+
+  AtomicFIFOHashTable hist_;
+
 };
 } // namespace cachelib
 } // namespace facebook

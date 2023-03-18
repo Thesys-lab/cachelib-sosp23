@@ -52,7 +52,8 @@ static void pin_thread_to_core(int core_id) {
 static void trace_replay_run_thread(struct bench_data *bdata,
                                     bench_opts_t *opts, int thread_id,
                                     struct thread_res *res) {
-  pin_thread_to_core(thread_id);
+  pin_thread_to_core(thread_id - 1);
+  // pthread_setname_np(pthread_self(), "trace_replay_" + to_string(thread_id));
 
   struct request *req = new_request();
   struct reader *reader =

@@ -4,8 +4,9 @@
 
 using namespace facebook::cachelib;
 // using Cache = facebook::cachelib::LruAllocator;
-using Cache = facebook::cachelib::ClockAllocator;
-// using Cache = QDLPAllocator;
+// using Cache = facebook::cachelib::ClockAllocator;
+// using Cache = facebook::cachelib::AtomicClockAllocator;
+using Cache = QDLPAllocator;
 // using Cache = Lru2QAllocator;
 // using Cache = TinyLFUAllocator;
 

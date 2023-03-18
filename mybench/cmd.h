@@ -44,7 +44,7 @@ static bench_opts_t parse_cmd(int argc, char *argv[]) {
 
   if (argc < 3) {
     printf(
-        "usage: %s trace_path cache_size_in_MB [report_interval] [n_thread]\n",
+        "usage: %s trace_path cache_size_in_MB [hashpower] [n_thread]\n",
         argv[0]);
     exit(1);
   }
@@ -52,7 +52,7 @@ static bench_opts_t parse_cmd(int argc, char *argv[]) {
   strncpy(opts.trace_path, argv[1], MAX_TRACE_PATH_LEN);
   opts.cache_size_in_mb = atoll(argv[2]);
   if (argc >= 4) {
-    opts.report_interval = atoll(argv[3]);
+    opts.hashpower = atoll(argv[3]);
   }
   if (argc >= 5) {
     opts.n_thread = atoi(argv[4]);

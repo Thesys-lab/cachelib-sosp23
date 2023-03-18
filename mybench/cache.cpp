@@ -41,7 +41,7 @@ void mycache_init(int64_t cache_size_in_mb, unsigned int hashpower,
       .setCacheName("My cache")
       // .enableItemReaperInBackground(std::chrono::seconds(1), {})
       // .enablePoolRebalancing(rebalance_strategy, std::chrono::seconds(1))
-      .setAccessConfig({hashpower, 20})
+      .setAccessConfig({hashpower, hashpower - 4})
       .validate();
 
   *cache_p = new Cache(config);
