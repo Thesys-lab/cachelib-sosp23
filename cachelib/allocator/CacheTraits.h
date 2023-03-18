@@ -16,11 +16,13 @@
 
 #pragma once
 #include "cachelib/allocator/ChainedHashTable.h"
+#ifdef FULL_COMPILE
 #include "cachelib/allocator/MM2Q.h"
 #include "cachelib/allocator/MMLru.h"
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
 #include "cachelib/allocator/MMAtomicClock.h"
+#endif
 #include "cachelib/allocator/MMQDLP.h"
 #include "cachelib/common/Mutex.h"
 
@@ -34,6 +36,7 @@ namespace cachelib {
 // accessed.
 // AccessTypeLock is the lock type for the access container that supports
 // multiple locking primitives
+#ifdef FULL_COMPILE
 struct LruCacheTrait {
   using MMType = MMLru;
   using AccessType = ChainedHashTable;
@@ -69,11 +72,13 @@ struct AtomicClockCacheTrait {
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
 };
+#endif
 
 struct QDLPCacheTrait {
   using MMType = MMQDLP;
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
+  // using AccessTypeLocks = SpinBuckets;
 };
 
 } // namespace cachelib

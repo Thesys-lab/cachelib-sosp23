@@ -280,7 +280,7 @@ class AtomicClockList {
 
   mutable folly::cacheline_aligned<Mutex> mtx_;
 
-  const static size_t nMaxEvictionCandidates_ = 64;
+  constexpr static size_t nMaxEvictionCandidates_ = 64;
 
   // head of the linked list
   std::atomic<T*> head_{nullptr};

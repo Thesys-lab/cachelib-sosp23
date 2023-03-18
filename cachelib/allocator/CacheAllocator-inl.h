@@ -325,7 +325,9 @@ CacheAllocator<CacheTrait>::allocateInternal(PoolId pid,
                                              uint32_t size,
                                              uint32_t creationTime,
                                              uint32_t expiryTime) {
+#ifdef ENABLE_EXPENSIVE_TRACKING
   util::LatencyTracker tracker{stats().allocateLatency_};
+#endif
 
   SCOPE_FAIL { stats_.invalidAllocs.inc(); };
 
@@ -335,7 +337,9 @@ CacheAllocator<CacheTrait>::allocateInternal(PoolId pid,
   // the allocation class in our memory allocator.
   const auto cid = allocator_->getAllocationClassId(pid, requiredSize);
 
+#ifdef ENABLE_EXPENSIVE_TRACKING
   (*stats_.allocAttempts)[pid][cid].inc();
+#endif
 
   void* memory = allocator_->allocate(pid, requiredSize);
   if (memory == nullptr) {
@@ -368,12 +372,14 @@ CacheAllocator<CacheTrait>::allocateInternal(PoolId pid,
     }
   }
 
+#ifdef ENABLE_EXPENSIVE_TRACKING
   if (auto eventTracker = getEventTracker()) {
     const auto result =
         handle ? AllocatorApiResult::ALLOCATED : AllocatorApiResult::FAILED;
     eventTracker->record(AllocatorApiEvent::ALLOCATE, key, result, size,
                          expiryTime ? expiryTime - creationTime : 0);
   }
+#endif
 
   return handle;
 }
@@ -734,6 +740,7 @@ CacheAllocator<CacheTrait>::releaseBackToAllocator(Item& it,
 
   const auto allocInfo = allocator_->getAllocInfo(it.getMemory());
 
+#ifdef ENABLE_EXPENSIVE_TRACKING
   if (ctx == RemoveContext::kEviction) {
     const auto timeNow = util::getCurrentTimeSec();
     const auto refreshTime = timeNow - it.getLastAccessTime();
@@ -745,6 +752,7 @@ CacheAllocator<CacheTrait>::releaseBackToAllocator(Item& it,
 
   (*stats_.fragmentationSize)[allocInfo.poolId][allocInfo.classId].sub(
       util::getFragmentation(*this, it));
+#endif
 
   // Chained items can only end up in this place if the user has allocated
   // memory for a chained item but has decided not to insert the chained item

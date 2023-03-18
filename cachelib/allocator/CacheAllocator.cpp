@@ -18,6 +18,7 @@
 
 namespace facebook {
 namespace cachelib {
+#ifdef FULL_COMPILE
 template class CacheAllocator<LruCacheTrait>;
 template class CacheAllocator<LruCacheWithSpinBucketsTrait>;
 template class CacheAllocator<Lru2QCacheTrait>;
@@ -25,7 +26,7 @@ template class CacheAllocator<TinyLFUCacheTrait>;
 
 template class CacheAllocator<ClockCacheTrait>;
 template class CacheAllocator<AtomicClockCacheTrait>;
-
+#endif
 template class CacheAllocator<QDLPCacheTrait>;
 
 } // namespace cachelib
