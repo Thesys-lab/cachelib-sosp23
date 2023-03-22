@@ -155,10 +155,6 @@ class AtomicClockList {
   // @param node node to be linked at the head
   void linkAtHead(T& node) noexcept;
 
-  // Links the passed node to the tail of the double linked list
-  // @param node node to be linked at the tail
-  // void linkAtTail(T& node) noexcept;
-
   // Add node before nextNode.
   //
   // @param nextNode    node before which to insert

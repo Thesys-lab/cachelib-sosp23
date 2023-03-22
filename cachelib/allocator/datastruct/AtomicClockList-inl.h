@@ -19,30 +19,6 @@
 namespace facebook {
 namespace cachelib {
 
-/* Linked list implemenation */
-// template <typename T, AtomicClockListHook<T> T::*HookPtr>
-// void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
-//   setPrev(node, nullptr);
-//   LockHolder l(*mtx_);
-
-//   T* head = head_;
-//   setNext(node, head);
-
-//   if (head_ != nullptr) {
-//     setPrev(*head_, &node);
-//   }
-//   head_ = &node;
-
-//   if (tail_ == nullptr) {
-//     tail_ = &node;
-//   }
-//   if (curr_ == nullptr) {
-//     curr_ = &node;
-//   }
-
-//   size_++;
-// }
-
 /* when linkedAtHead uses atomic op,
  * it is possible to conflict with the node that unlink the head when using
  * myclock
@@ -75,6 +51,7 @@ void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
 
   size_++;
 }
+
 
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::unlink(const T& node) noexcept {

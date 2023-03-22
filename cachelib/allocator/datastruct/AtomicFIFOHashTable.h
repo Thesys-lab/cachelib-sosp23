@@ -86,8 +86,9 @@ class AtomicFIFOHashTable {
 
  private:
   size_t getBucketIdx(uint32_t key) {
+    // TODO: we can use & directly
     size_t bucketIdx = (size_t) key % numElem_;
-    bucketIdx = bucketIdx & 0xFFFFFFFFFFFFFFF8;
+    bucketIdx = bucketIdx & bucketIdxMask_;
     return bucketIdx;
   }
 
@@ -106,8 +107,9 @@ class AtomicFIFOHashTable {
     return uKey | (uTime << 32);
   }
 
-  const size_t loadFactorInv_{4};
-  const size_t nItemPerBucket_{8};
+  static constexpr size_t loadFactorInv_{4};
+  static constexpr size_t nItemPerBucket_{8};
+  static constexpr size_t bucketIdxMask_{0xFFFFFFFFFFFFFFF8};
 
   constexpr static uint64_t keyMask_ = 0x00000000FFFFFFFF;
   constexpr static uint64_t valueMask_ = 0xFFFFFFFF00000000;

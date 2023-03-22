@@ -132,129 +132,11 @@ class QDList {
     return node.template isFlagSet<RefFlags::kMMFlag2>();
   }
 
-  // T* getNext(const T& node) const noexcept {
-  //   return (node.*HookPtr).getNext(compressor_);
-  // }
-
-  // T* getPrev(const T& node) const noexcept {
-  //   return (node.*HookPtr).getPrev(compressor_);
-  // }
-
-  // T* getEvictionCandidateProbationary() noexcept;
-
-  // T* getEvictionCandidateMain() noexcept;
-
-  // // Iterator interface for the double linked list. Supports both iterating
-  // // from the tail and head.
-  // class Iterator {
-  //  public:
-  //   enum class Direction { FROM_HEAD, FROM_TAIL };
-
-  //   // Initializes the iterator to the beginning.
-  //   explicit Iterator(const QDList<T, HookPtr>& mlist) noexcept
-  //       : currIter_(mlist.lists_[mlist.lists_.size() - 1]->rbegin()),
-  //         mlist_(mlist) {
-  //     resetToBegin();
-  //     // We should either point to an element or the end() iterator
-  //     // which has an invalid index_.
-  //     XDCHECK(index_ == kInvalidIndex || currIter_.get() != nullptr);
-  //   }
-
-  //   explicit Iterator(const QDList<T, HookPtr>& mlist, size_t listIdx)
-  //   noexcept
-  //       : currIter_(mlist.lists_[mlist.lists_.size() - 1]->rbegin()),
-  //         mlist_(mlist) {
-  //     XDCHECK_LT(listIdx, mlist.lists_.size());
-  //     initToValidRBeginFrom(listIdx);
-  //     // We should either point to an element or the end() iterator
-  //     // which has an invalid index_.
-  //     XDCHECK(index_ == kInvalidIndex || currIter_.get() != nullptr);
-  //   }
-
-  //   virtual ~Iterator() = default;
-
-  //   // copyable and movable
-  //   Iterator(const Iterator&) = default;
-  //   Iterator& operator=(const Iterator&) = default;
-  //   Iterator(Iterator&&) noexcept = default;
-  //   Iterator& operator=(Iterator&&) noexcept = default;
-
-  //   // moves the iterator forward and backward. Calling ++ once the
-  //   iterator
-  //   // has reached the end is undefined.
-  //   Iterator& operator++() {  goForward(); return *this; };
-  //   Iterator& operator--() { goBackward(); return *this; };
-
-  //   T* operator->() const noexcept { return currIter_.operator->(); }
-  //   T& operator*() const noexcept { return currIter_.operator*(); }
-
-  //   bool operator==(const Iterator& other) const noexcept {
-  //     return &mlist_ == &other.mlist_ && currIter_ == other.currIter_ &&
-  //            index_ == other.index_;
-  //   }
-
-  //   bool operator!=(const Iterator& other) const noexcept {
-  //     return !(*this == other);
-  //   }
-
-  //   // explicit operator bool() const noexcept {
-  //   //   return curr_ != nullptr && QDList_ != nullptr;
-  //   // }
-
-  //   explicit operator bool() const noexcept {
-  //     return index_ < mlist_.lists_.size();
-  //   }
-
-  //   T* get() const noexcept { return currIter_.get(); }
-
-  //   // Invalidates this iterator
-  //   void reset() noexcept {
-  //     // Set index to before first list
-  //     index_ = kInvalidIndex;
-  //     // Point iterator to first list's rend
-  //     currIter_ = mlist_.lists_[0]->rend();
-  //   }
-
-  //   // Reset the iterator back to the beginning
-  //   void resetToBegin() noexcept {
-  //     initToValidRBeginFrom(mlist_.lists_.size() - 1);
-  //   }
-
-  //  protected:
-  //   void goForward() noexcept;
-  //   void goBackward() noexcept;
-
-  //   // reset iterator to the beginning of a speicific queue
-  //   void initToValidRBeginFrom(size_t listIdx) noexcept;
-
-  //   // Index of current list
-  //   size_t index_{0};
-  //   // the current position of the iterator in the list
-  //   CListIterator currIter_;
-  //   const QDList<T, HookPtr>& mlist_;
-
-  //   static constexpr size_t kInvalidIndex =
-  //   std::numeric_limits<size_t>::max();
-  // };
-
-  // // provides an iterator starting from the tail of the linked list.
-  // Iterator rbegin() const noexcept;
-
-  // // provides an iterator starting from the tail of the linked list.
-  // Iterator rbegin(size_t idx) const;
-
-  // // Iterator to compare against for the end.
-  // Iterator rend() const noexcept;
-
  private:
   static uint32_t hashNode(const T& node) noexcept {
     return static_cast<uint32_t>(
         folly::hasher<folly::StringPiece>()(node.getKey()));
   }
-
-  void prepEvictCandProbationary() noexcept;
-
-  void prepEvictCandMain() noexcept;
 
   std::unique_ptr<ADList> pfifo_;
 
@@ -265,7 +147,6 @@ class QDList {
   constexpr static double pRatio_ = 0.1;
 
   AtomicFIFOHashTable hist_;
-
 };
 } // namespace cachelib
 } // namespace facebook
