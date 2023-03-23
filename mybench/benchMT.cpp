@@ -52,7 +52,7 @@ static void pin_thread_to_core(int core_id) {
 static void trace_replay_run_thread(struct bench_data *bdata,
                                     bench_opts_t *opts, int thread_id,
                                     struct thread_res *res) {
-  pin_thread_to_core(thread_id - 1);
+  // pin_thread_to_core(thread_id - 1);
   // pthread_setname_np(pthread_self(), "trace_replay_" + to_string(thread_id));
 
   struct request *req = new_request();
@@ -73,13 +73,13 @@ static void trace_replay_run_thread(struct bench_data *bdata,
 
   LOG(INFO) << "thread " << thread_id << " start";
   while (read_trace(reader, req) == 0) {
-    if (res->n_get % 100 == 0 && thread_id == 1) {
+    if (res->n_get % 1000 == 0 && thread_id == 1) {
         util::setCurrentTimeSec(req->timestamp);
     }
     status = cache_go(bdata->cache, bdata->pool, req, &res->n_get, &res->n_set,
                       &res->n_del, &res->n_get_miss);
 
-    if (res->n_get % 100000 == 0) {
+    if (res->n_get % 1000000 == 0) {
       if (STOP_FLAG.load()) {
         break;
       }

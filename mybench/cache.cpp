@@ -41,9 +41,12 @@ void mycache_init(int64_t cache_size_in_mb, unsigned int hashpower,
       .setCacheName("My cache")
       // .enableItemReaperInBackground(std::chrono::seconds(1), {})
       // .enablePoolRebalancing(rebalance_strategy, std::chrono::seconds(1))
-      .setAccessConfig({hashpower, hashpower - 4})
+      .setAccessConfig({hashpower, hashpower-2})
       .validate();
 
+  // config.poolRebalanceInterval = std::chrono::seconds(10);
+  // config.reaperInterval = std::chrono::seconds(10);
+  // print_config(config);
   *cache_p = new Cache(config);
   *pool_p = (*cache_p)->addPool("default",
                                 (*cache_p)->getCacheMemoryStats().ramCacheSize);
@@ -73,7 +76,7 @@ static inline std::string gen_key(struct request *req) {
 }
 
 int cache_get(Cache *cache, PoolId pool, struct request *req) {
-  // static __thread char buf[1024 * 1024];
+  static __thread char buf[1024 * 1024];
 
   // util::setCurrentTimeSec(req->timestamp);
 
@@ -93,7 +96,7 @@ int cache_get(Cache *cache, PoolId pool, struct request *req) {
       assert(!item_handle->isExpired());
       const char *data =
           reinterpret_cast<const char *>(item_handle->getMemory());
-      // memcpy(buf, data, req->val_len);
+      memcpy(buf, data, req->val_len);
 
       return 0;
     }

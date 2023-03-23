@@ -208,6 +208,16 @@ struct ChainedHashTableObject {
   4: i32 hasherMagicId = 0,
 }
 
+struct BucketHashTableObject {
+  1: required i32 bucketsPower,
+  2: required i32 locksPower,
+  3: i64 numKeys,
+
+  // this magic id ensures on a warm roll, user cannot
+  // start the cache with a different hash function
+  4: i32 hasherMagicId = 0,
+}
+
 struct MMTTLBucketObject {
   4: i64 expirationTime,
   5: i64 creationTime,
