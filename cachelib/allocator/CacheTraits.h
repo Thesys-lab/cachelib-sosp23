@@ -16,6 +16,7 @@
 
 #pragma once
 #include "cachelib/allocator/ChainedHashTable.h"
+// #include "cachelib/allocator/BucketHashTable.h"
 #ifdef FULL_COMPILE
 #include "cachelib/allocator/MM2Q.h"
 #include "cachelib/allocator/MMLru.h"
@@ -80,6 +81,12 @@ struct QDLPCacheTrait {
   using AccessTypeLocks = SharedMutexBuckets;
   // using AccessTypeLocks = SpinBuckets;
 };
+
+// struct QDLPCacheTraitV2 {
+//   using MMType = MMQDLP;
+//   using AccessType = BucketHashTable;
+//   using AccessTypeLocks = SharedMutexBuckets;
+// };
 
 } // namespace cachelib
 } // namespace facebook

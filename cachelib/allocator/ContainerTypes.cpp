@@ -15,6 +15,7 @@
  */
 
 #include "cachelib/allocator/ChainedHashTable.h"
+// #include "cachelib/allocator/BucketHashTable.h"
 #include "cachelib/allocator/MM2Q.h"
 #include "cachelib/allocator/MMLru.h"
 #include "cachelib/allocator/MMTinyLFU.h"
@@ -36,5 +37,6 @@ const int MMQDLP::kId = 5;
 
 // AccessType
 const int ChainedHashTable::kId = 1;
+// const int BucketHashTable::kId = 2;
 } // namespace cachelib
 } // namespace facebook
