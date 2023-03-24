@@ -44,6 +44,71 @@ void AtomicDList<T, HookPtr>::linkAtHead(T& node) noexcept {
   size_++;
 }
 
+template <typename T, AtomicDListHook<T> T::*HookPtr>
+void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start, T& end, size_t n) noexcept {
+  setPrev(start, nullptr);
+
+  // int c = 1;
+  // T *curr = &start;
+  // while (curr && curr != &end) {
+  //   c += 1;
+  //   curr = getNext(*curr);
+  // }
+  // if (c != n) {
+  //   printf("c = %d, n = %ld\n", c, n);
+  //   abort();
+  // }
+
+  T* oldHead = head_.load();
+  setNext(end, oldHead);
+
+  while (!head_.compare_exchange_weak(oldHead, &start)) {
+    setNext(end, oldHead);
+  }
+
+  if (oldHead == nullptr) {
+    // this is the thread that first makes head_ points to the node
+    // other threads must follow this, o.w. oldHead will be nullptr
+    XDCHECK_EQ(tail_, nullptr);
+
+    T *tail = nullptr;
+    tail_.compare_exchange_strong(tail, &end);
+  } else {
+    setPrev(*oldHead, &end);
+  }
+
+  size_ += n;
+}
+
+template <typename T, AtomicDListHook<T> T::*HookPtr>
+void AtomicDList<T, HookPtr>::linkAtHeadFromADList(AtomicDList<T, HookPtr> &o) noexcept {
+
+  T* oHead = &o.getHead();
+  T* oTail = &o.getTail();
+
+  // setPrev(o.getHead(), nullptr);
+
+  T* oldHead = head_.load();
+  setNext(*oTail, oldHead);
+
+  while (!head_.compare_exchange_weak(oldHead, oHead)) {
+    setNext(oTail, oldHead);
+  }
+
+  if (oldHead == nullptr) {
+    // this is the thread that first makes head_ points to the node
+    // other threads must follow this, o.w. oldHead will be nullptr
+    XDCHECK_EQ(tail_, nullptr);
+
+    T *tail = nullptr;
+    tail_.compare_exchange_strong(tail, &oTail);
+  } else {
+    setPrev(*oldHead, &oTail);
+  }
+
+  size_ += o.size();
+}
+
 /* note that the next of the tail may not be nullptr  */
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 T* AtomicDList<T, HookPtr>::removeTail() noexcept {

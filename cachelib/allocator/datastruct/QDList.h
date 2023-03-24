@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <thread>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -55,6 +56,10 @@ class QDList {
   QDList() = default;
   QDList(const QDList&) = delete;
   QDList& operator=(const QDList&) = delete;
+  ~QDList() {
+    stop_ = true;
+    evThread_->join();
+  }
 
   QDList(PtrCompressor compressor) noexcept {
     pfifo_ = std::make_unique<ADList>(compressor);
@@ -80,10 +85,6 @@ class QDList {
     return state;
   }
 
-  // SingleCList& getList(int index) const noexcept {
-  //   return *(lists_[index].get());
-  // }
-
   ADList& getListProbationary() const noexcept { return *pfifo_; }
 
   ADList& getListMain() const noexcept { return *mfifo_; }
@@ -94,12 +95,39 @@ class QDList {
 
   T* getEvictionCandidate() noexcept;
 
+  void prepareEvictionCandidates() noexcept;
+
+  void threadFunc() noexcept {
+    XLOG(INFO) << "QDList thread has started";
+    T* curr = nullptr;
+
+    while (!stop_.load()) {
+      while (evictCandidateQueue_.size() < (ssize_t) nMaxEvictionCandidates_ / 4 * 3) {
+        prepareEvictionCandidates();
+      }
+      // printf("prepared %ld\n", evictCandidateQueue_.size());
+      // std::this_thread::yield();
+    }
+    printf("QDList thread has stopped\n");
+  }
+
   void add(T& node) noexcept {
     if (hist_.initialized() && hist_.contains(hashNode(node))) {
-        mfifo_->linkAtHead(node);
-        markMain(node);
-        unmarkProbationary(node);
+
+
+      mfifo_->linkAtHead(node);
+      markMain(node);
+      unmarkProbationary(node);
+
     } else {
+      // if (newObjPQueue_.size() >= 8) {
+      //     T* curr;
+      //     while (newObjPQueue_.read(curr)) {
+      //         pfifo_->linkAtHead(*curr);
+      //     }
+      // }
+      // newObjPQueue_.blockingWrite(&node);
+
       pfifo_->linkAtHead(node);
       markProbationary(node);
       unmarkMain(node);
@@ -138,15 +166,43 @@ class QDList {
         folly::hasher<folly::StringPiece>()(node.getKey()));
   }
 
+  /* different from previous one - we load 1/4 of the nMax */
+  size_t nCandidateToPrepare() {
+    size_t n = 0;
+    n = std::min(pfifo_->size() + mfifo_->size(), nMaxEvictionCandidates_);
+    n = std::max(n / 4, 1ul);
+    return n;
+  }
+
   std::unique_ptr<ADList> pfifo_;
 
   std::unique_ptr<ADList> mfifo_;
+
+  std::unique_ptr<ADList[]> pfifoSublists_;
+  std::unique_ptr<ADList[]> mfifoSublists_;
 
   mutable folly::cacheline_aligned<Mutex> mtx_;
 
   constexpr static double pRatio_ = 0.1;
 
   AtomicFIFOHashTable hist_;
+
+  constexpr static size_t nMaxEvictionCandidates_ = 64;
+  constexpr static size_t nMaxNewObjects_ = 64;
+
+  // folly::MPMCQueue<T*> evictCandidatePQueue_{nMaxEvictionCandidates_};
+  // folly::MPMCQueue<T*> evictCandidateMQueue_{nMaxEvictionCandidates_};
+
+  // folly::MPMCQueue<T*> newObjPQueue_{nMaxNewObjects_};
+  // folly::MPMCQueue<T*> newObjMQueue_{nMaxNewObjects_};
+
+  folly::MPMCQueue<T*> evictCandidateQueue_{nMaxEvictionCandidates_};
+
+  std::unique_ptr<std::thread> evThread_{nullptr};
+
+  std::atomic<bool> stop_{false};
+
+  std::atomic<int> nEvicts_{0};
 };
 } // namespace cachelib
 } // namespace facebook

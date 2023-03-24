@@ -151,6 +151,10 @@ class AtomicDList {
   // @param node node to be linked at the head
   void linkAtHead(T& node) noexcept;
 
+  void linkAtHeadMultiple(T& start, T& end, size_t n) noexcept;
+
+  void linkAtHeadFromADList(AtomicDList<T, HookPtr> &o) noexcept;
+
   // Links the passed node to the head of the double linked list
   // @param node node to be linked at the head
   T* removeTail() noexcept;
