@@ -102,19 +102,23 @@ class QDList {
     XLOG(INFO) << "QDList thread has started";
     T* curr = nullptr;
 
+    // cpu_set_t cpuset;
+    // CPU_ZERO(&cpuset);
+    // for (int i = 0; i < 128; i++)
+    //   CPU_SET(i, &cpuset);
+    // pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    // pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
     while (!stop_.load()) {
       while (evictCandidateQueue_.size() <
-                 (ssize_t)nMaxEvictionCandidates_ / 2) {
+             (ssize_t)nMaxEvictionCandidates_ / 2) {
         prepareEvictionCandidates();
       }
-      // printf("prepared %ld\n", evictCandidateQueue_.size());
-      // std::this_thread::yield();
     }
     printf("QDList thread has stopped\n");
   }
 
   void add(T& node) noexcept {
-
     if (hist_.initialized() && hist_.contains(hashNode(node))) {
       mfifo_->linkAtHead(node);
       markMain(node);
@@ -188,21 +192,12 @@ class QDList {
   AtomicFIFOHashTable hist_;
 
   constexpr static size_t nMaxEvictionCandidates_ = 64;
-  constexpr static size_t nMaxNewObjects_ = 64;
-
-  // folly::MPMCQueue<T*> evictCandidatePQueue_{nMaxEvictionCandidates_};
-  // folly::MPMCQueue<T*> evictCandidateMQueue_{nMaxEvictionCandidates_};
-
-  // folly::MPMCQueue<T*> newObjPQueue_{nMaxNewObjects_};
-  // folly::MPMCQueue<T*> newObjMQueue_{nMaxNewObjects_};
 
   folly::MPMCQueue<T*> evictCandidateQueue_{nMaxEvictionCandidates_};
 
   std::unique_ptr<std::thread> evThread_{nullptr};
 
   std::atomic<bool> stop_{false};
-
-  std::atomic<int> nEvicts_{0};
 };
 } // namespace cachelib
 } // namespace facebook

@@ -75,15 +75,15 @@ T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
   T* curr = nullptr;
   if (!hist_.initialized()) {
     LockHolder l(*mtx_);
-#define ENABLE_SCALABILITY
+    hist_.setFIFOSize(listSize / 2);
+    hist_.initHashtable();
+
+// #define ENABLE_SCALABILITY
 #ifdef ENABLE_SCALABILITY
     if (evThread_.get() == nullptr) {
       evThread_ = std::make_unique<std::thread>(&QDList::threadFunc, this);
     }
 #endif
-
-    hist_.setFIFOSize(listSize / 2);
-    hist_.initHashtable();
   }
 
   if (evictCandidateQueue_.sizeGuess() < nMaxEvictionCandidates_ / 4) {
@@ -119,7 +119,7 @@ void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
       if (curr != nullptr) {
         if (pfifo_->isAccessed(*curr)) {
           pfifo_->unmarkAccessed(*curr);
-          // XDCHECK(isProbationary(*curr));
+          XDCHECK(isProbationary(*curr));
           unmarkProbationary(*curr);
           markMain(*curr);
           // mfifo_->linkAtHead(*curr);
