@@ -1,14 +1,22 @@
 #pragma once
 
 #include <folly/logging/xlog.h>
+#include <folly/lang/Aligned.h>
+
+#include <folly/synchronization/DistributedMutex.h>
 
 #include <atomic>
+
+#include "cachelib/common/Mutex.h"
 
 namespace facebook {
 namespace cachelib {
 
 class AtomicFIFOHashTable {
  public:
+  using Mutex = folly::DistributedMutex;
+  using LockHolder = std::unique_lock<Mutex>;
+
   AtomicFIFOHashTable() = default;
 
   explicit AtomicFIFOHashTable(uint32_t fifoSize) noexcept {
@@ -33,54 +41,60 @@ class AtomicFIFOHashTable {
     numElem_ = fifoSize_ * loadFactorInv_;
   }
 
-  bool contains(uint32_t key) noexcept {
-    uint32_t bucketIdx = getBucketIdx(key);
-    int64_t currTime = numInserts_.load();
-    uint64_t zero = 0;
+  bool contains(uint32_t key) noexcept;
 
-    for (uint32_t i = 0; i < nItemPerBucket_; i++) {
-      uint64_t valInTable = hashTable_[bucketIdx + i];
-      int64_t age = currTime - getInsertionTime(valInTable);
-      if (valInTable == 0) {
-        continue;
-      }
-      if (age > fifoSize_) {
-        __atomic_compare_exchange_n(&hashTable_[bucketIdx + i], &valInTable, 0,
-                                    true, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
-        continue;
-      }
-      if (matchKey(valInTable, key)) {
-        __atomic_compare_exchange_n(&hashTable_[bucketIdx + i], &valInTable, 0,
-                                    true, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
-        return true;
-      }
-    }
-    return false;
-  }
+  void insert(uint32_t key) noexcept;
 
-  void insert(uint32_t key) noexcept {
-    int64_t currTime = numInserts_++;
-    if (currTime > UINT32_MAX) {
-      numInserts_ = 0;
-      currTime = 0;
-    }
-    size_t bucketIdx = getBucketIdx(key);
-    uint64_t hashTableVal = genHashtableVal(key, currTime);
+  // bool contains(uint32_t key) noexcept {
+  //   LockHolder l(*mtx_);
+  //   uint32_t bucketIdx = getBucketIdx(key);
+  //   int64_t currTime = numInserts_.load();
+  //   uint64_t zero = 0;
 
-    for (size_t i = 0; i < nItemPerBucket_; i++) {
-      uint64_t valInTable = hashTable_[bucketIdx + i];
-      if (valInTable == 0) {
-        if (__atomic_compare_exchange_n(&hashTable_[bucketIdx + i], &valInTable,
-                                        hashTableVal, true, __ATOMIC_RELAXED,
-                                        __ATOMIC_RELAXED)) {
-          return;
-        }
-      }
-    }
-    // we do not find an empty slots, random choose and overwrite one
-    numEvicts_++;
-    hashTable_[key % numElem_] = hashTableVal;
-  }
+  //   for (uint32_t i = 0; i < nItemPerBucket_; i++) {
+  //     uint64_t valInTable = hashTable_[bucketIdx + i];
+  //     int64_t age = currTime - getInsertionTime(valInTable);
+  //     if (valInTable == 0) {
+  //       continue;
+  //     }
+  //     if (age > fifoSize_) {
+  //       __atomic_compare_exchange_n(&hashTable_[bucketIdx + i], &valInTable, 0,
+  //                                   true, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+  //       continue;
+  //     }
+  //     if (matchKey(valInTable, key)) {
+  //       __atomic_compare_exchange_n(&hashTable_[bucketIdx + i], &valInTable, 0,
+  //                                   true, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+  //       return true;
+  //     }
+  //   }
+  //   return false;
+  // }
+
+  // void insert(uint32_t key) noexcept {
+  //   // LockHolder l(*mtx_);
+  //   int64_t currTime = numInserts_++;
+  //   if (currTime > UINT32_MAX) {
+  //     numInserts_ = 0;
+  //     currTime = 0;
+  //   }
+  //   size_t bucketIdx = getBucketIdx(key);
+  //   uint64_t hashTableVal = genHashtableVal(key, currTime);
+
+  //   for (size_t i = 0; i < nItemPerBucket_; i++) {
+  //     uint64_t valInTable = hashTable_[bucketIdx + i];
+  //     if (valInTable == 0) {
+  //       if (__atomic_compare_exchange_n(&hashTable_[bucketIdx + i], &valInTable,
+  //                                       hashTableVal, true, __ATOMIC_RELAXED,
+  //                                       __ATOMIC_RELAXED)) {
+  //         return;
+  //       }
+  //     }
+  //   }
+  //   // we do not find an empty slots, random choose and overwrite one
+  //   numEvicts_++;
+  //   hashTable_[key % numElem_] = hashTableVal;
+  // }
 
  private:
   size_t getBucketIdx(uint32_t key) {
@@ -118,6 +132,7 @@ class AtomicFIFOHashTable {
   std::atomic<int64_t> numInserts_{0};
   std::atomic<int64_t> numEvicts_{0};
   alignas(64) std::unique_ptr<uint64_t[]> hashTable_{nullptr};
+  mutable folly::cacheline_aligned<Mutex> mtx_;
 };
 
 } // namespace cachelib

@@ -27,6 +27,7 @@ add_library (cachelib_allocator
   ${SERIALIZE_THRIFT_FILES}
   ${DATASTRUCT_SERIALIZE_THRIFT_FILES}
   ${MEMORY_SERIALIZE_THRIFT_FILES}
+    datastruct/AtomicFIFOHashTable.cpp
     CacheAllocator.cpp
     Cache.cpp
     CacheDetails.cpp
