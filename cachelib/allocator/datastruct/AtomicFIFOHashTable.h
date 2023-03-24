@@ -107,7 +107,7 @@ class AtomicFIFOHashTable {
     return uKey | (uTime << 32);
   }
 
-  static constexpr size_t loadFactorInv_{4};
+  static constexpr size_t loadFactorInv_{2};
   static constexpr size_t nItemPerBucket_{8};
   static constexpr size_t bucketIdxMask_{0xFFFFFFFFFFFFFFF8};
 

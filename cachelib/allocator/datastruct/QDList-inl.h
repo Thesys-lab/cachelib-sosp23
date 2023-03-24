@@ -17,6 +17,54 @@
 namespace facebook {
 namespace cachelib {
 
+// used for single thread
+template <typename T, AtomicDListHook<T> T::*HookPtr>
+T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
+  size_t listSize = pfifo_->size() + mfifo_->size();
+  if (listSize == 0) {
+    return nullptr;
+  }
+
+  T* curr = nullptr;
+  if (!hist_.initialized()) {
+    LockHolder l(*mtx_);
+
+    hist_.setFIFOSize(listSize / 2);
+    hist_.initHashtable();
+  }
+
+  while (true) {
+    if (pfifo_->size() > (double)(pfifo_->size() + mfifo_->size()) * pRatio_) {
+      // evict from probationary FIFO
+      curr = pfifo_->removeTail();
+      if (curr == nullptr) {
+        continue;
+      }
+      if (pfifo_->isAccessed(*curr)) {
+        pfifo_->unmarkAccessed(*curr);
+        // XDCHECK(isProbationary(*curr));
+        unmarkProbationary(*curr);
+        markMain(*curr);
+        mfifo_->linkAtHead(*curr);
+      } else {
+        hist_.insert(hashNode(*curr));
+        return curr;
+      }
+    } else {
+      curr = mfifo_->removeTail();
+      if (curr == nullptr) {
+        continue;
+      }
+      if (mfifo_->isAccessed(*curr)) {
+        mfifo_->unmarkAccessed(*curr);
+        mfifo_->linkAtHead(*curr);
+      } else {
+        return curr;
+      }
+    }
+  }
+}
+
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
   size_t listSize = pfifo_->size() + mfifo_->size();
@@ -27,6 +75,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
   T* curr = nullptr;
   if (!hist_.initialized()) {
     LockHolder l(*mtx_);
+#define ENABLE_SCALABILITY
 #ifdef ENABLE_SCALABILITY
     if (evThread_.get() == nullptr) {
       evThread_ = std::make_unique<std::thread>(&QDList::threadFunc, this);
@@ -59,7 +108,8 @@ void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
   int nNodeLocal = 0;
 
   for (int i = 0; i < nCandidateToPrepare(); i++) {
-    if (evictCandidateQueue_.sizeGuess() >= (ssize_t)nMaxEvictionCandidates_ - 16) {
+    if (evictCandidateQueue_.sizeGuess() >=
+        (ssize_t)nMaxEvictionCandidates_ - 16) {
       return;
     }
 
@@ -72,7 +122,6 @@ void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
           // XDCHECK(isProbationary(*curr));
           unmarkProbationary(*curr);
           markMain(*curr);
-          // mfifo_->linkAtHead(*curr);
 
           // link to local list
           if (mfifo_head == nullptr) {
@@ -97,7 +146,6 @@ void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
       if (curr != nullptr) {
         if (mfifo_->isAccessed(*curr)) {
           mfifo_->unmarkAccessed(*curr);
-          // mfifo_->linkAtHead(*curr);
 
           // link to local list
           if (mfifo_head == nullptr) {

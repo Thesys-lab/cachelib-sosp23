@@ -133,6 +133,7 @@ int read_oracleGeneral_trace(struct reader *reader, struct request *req) {
   req->key_len = 8;
   req->val_len = *(uint64_t *)(record + 12);
   if (req->val_len > 1048500) req->val_len = 1048500;
+  
   req->op = op_get;
   req->ttl = 2000000;
 

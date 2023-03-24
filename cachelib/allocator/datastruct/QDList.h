@@ -95,6 +95,8 @@ class QDList {
 
   T* getEvictionCandidate() noexcept;
 
+  T* getEvictionCandidate0() noexcept;
+
   void prepareEvictionCandidates() noexcept;
 
   void threadFunc() noexcept {
