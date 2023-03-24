@@ -68,7 +68,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
   size_t listSize = pfifo_->size() + mfifo_->size();
-  if (listSize == 0) {
+  if (listSize == 0 && evictCandidateQueue_.size() == 0) {
     return nullptr;
   }
 
@@ -122,6 +122,7 @@ void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
           // XDCHECK(isProbationary(*curr));
           unmarkProbationary(*curr);
           markMain(*curr);
+          // mfifo_->linkAtHead(*curr);
 
           // link to local list
           if (mfifo_head == nullptr) {
@@ -146,6 +147,7 @@ void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
       if (curr != nullptr) {
         if (mfifo_->isAccessed(*curr)) {
           mfifo_->unmarkAccessed(*curr);
+          // mfifo_->linkAtHead(*curr);
 
           // link to local list
           if (mfifo_head == nullptr) {

@@ -89,7 +89,7 @@ class QDList {
 
   ADList& getListMain() const noexcept { return *mfifo_; }
 
-  T* getTail() const noexcept { return pfifo_->getTail(); }
+  // T* getTail() const noexcept { return pfifo_->getTail(); }
 
   size_t size() const noexcept { return pfifo_->size() + mfifo_->size(); }
 
@@ -104,7 +104,8 @@ class QDList {
     T* curr = nullptr;
 
     while (!stop_.load()) {
-      while (evictCandidateQueue_.size() < (ssize_t) nMaxEvictionCandidates_ / 4 * 3) {
+      while (evictCandidateQueue_.size() <
+                 (ssize_t)nMaxEvictionCandidates_ / 2) {
         prepareEvictionCandidates();
       }
       // printf("prepared %ld\n", evictCandidateQueue_.size());
@@ -115,12 +116,9 @@ class QDList {
 
   void add(T& node) noexcept {
     if (hist_.initialized() && hist_.contains(hashNode(node))) {
-
-
       mfifo_->linkAtHead(node);
       markMain(node);
       unmarkProbationary(node);
-
     } else {
       // if (newObjPQueue_.size() >= 8) {
       //     T* curr;
