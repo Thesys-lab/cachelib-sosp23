@@ -34,9 +34,8 @@ void AtomicDList<T, HookPtr>::linkAtHead(T& node) noexcept {
     // other threads must follow this, o.w. oldHead will be nullptr
     XDCHECK_EQ(tail_, nullptr);
 
-    T *tail = nullptr, *curr = nullptr;
+    T* tail = nullptr;
     tail_.compare_exchange_strong(tail, &node);
-    // curr_.compare_exchange_strong(curr, &node);
   } else {
     setPrev(*oldHead, &node);
   }
@@ -45,7 +44,9 @@ void AtomicDList<T, HookPtr>::linkAtHead(T& node) noexcept {
 }
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start, T& end, size_t n) noexcept {
+void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start,
+                                                 T& end,
+                                                 size_t n) noexcept {
   setPrev(start, nullptr);
 
   // int c = 1;
@@ -71,7 +72,7 @@ void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start, T& end, size_t n) noe
     // other threads must follow this, o.w. oldHead will be nullptr
     XDCHECK_EQ(tail_, nullptr);
 
-    T *tail = nullptr;
+    T* tail = nullptr;
     tail_.compare_exchange_strong(tail, &end);
   } else {
     setPrev(*oldHead, &end);
@@ -81,8 +82,8 @@ void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start, T& end, size_t n) noe
 }
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-void AtomicDList<T, HookPtr>::linkAtHeadFromADList(AtomicDList<T, HookPtr> &o) noexcept {
-
+void AtomicDList<T, HookPtr>::linkAtHeadFromADList(
+    AtomicDList<T, HookPtr>& o) noexcept {
   T* oHead = &o.getHead();
   T* oTail = &o.getTail();
 
@@ -100,7 +101,7 @@ void AtomicDList<T, HookPtr>::linkAtHeadFromADList(AtomicDList<T, HookPtr> &o) n
     // other threads must follow this, o.w. oldHead will be nullptr
     XDCHECK_EQ(tail_, nullptr);
 
-    T *tail = nullptr;
+    T* tail = nullptr;
     tail_.compare_exchange_strong(tail, &oTail);
   } else {
     setPrev(*oldHead, &oTail);
@@ -118,6 +119,12 @@ T* AtomicDList<T, HookPtr>::removeTail() noexcept {
     return nullptr;
   }
   T* prev = getPrev(*tail);
+
+  /* newly added */
+  while (prev == nullptr && size_.load() > 1) {
+    tail = tail_.load();
+    prev = getPrev(*tail);
+  }
 
   while (!tail_.compare_exchange_weak(tail, prev)) {
     prev = getPrev(*tail);

@@ -58,6 +58,8 @@ set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../opt/cachelib/lib/cmake/"
                       "${CMAKE_CURRENT_SOURCE_DIR}/../opt/cachelib/"
 )
 
+option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
+
 option (FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)
 if (${FORCE_COLORED_OUTPUT})
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
@@ -67,6 +69,7 @@ if (${FORCE_COLORED_OUTPUT})
     endif ()
 endif ()
 
+# add_definitions(-DFULL_COMPILE)
 
 
 ############## end of new changes ################
@@ -399,9 +402,9 @@ install(EXPORT cachelib-exports
 if (BUILD_SHARED_LIBS)
   set_target_properties(
     cachelib_allocator
-    cachelib_cachebench
+    # cachelib_cachebench
     cachelib_common
-    cachelib_datatype
+    # cachelib_datatype
     cachelib_navy
     cachelib_shm
     PROPERTIES

@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <folly/AtomicHashMap.h>
 #include <folly/MPMCQueue.h>
 #include <folly/logging/xlog.h>
 
@@ -115,6 +114,7 @@ class QDList {
   }
 
   void add(T& node) noexcept {
+
     if (hist_.initialized() && hist_.contains(hashNode(node))) {
       mfifo_->linkAtHead(node);
       markMain(node);

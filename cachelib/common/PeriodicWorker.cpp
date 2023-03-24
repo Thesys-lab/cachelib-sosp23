@@ -46,6 +46,10 @@ PeriodicWorker::~PeriodicWorker() {
 void PeriodicWorker::loop(void) {
   /* Wait for interval_ time before executing work again */
   auto breakOut = [this]() { return wakeUp_ || shouldStopWork_; };
+  char threadName[64];
+  pthread_getname_np(pthread_self(), threadName, sizeof(threadName));
+  XLOG(INFO) << "Starting periodic worker thread "
+             << folly::getCurrentThreadName().value_or("unknown") << " ";
 
   LockHolder l(lock_);
   preWork();
@@ -54,7 +58,13 @@ void PeriodicWorker::loop(void) {
     l.unlock();
     work();
     const std::chrono::milliseconds timeoutMs(interval_);
-    runCount_.fetch_add(1, std::memory_order_relaxed);
+    int n = runCount_.fetch_add(1, std::memory_order_relaxed);
+    if (n != 0 && n % 10000 == 0) {
+      XLOG(INFO) << "worker thread "
+                 << folly::getCurrentThreadName().value_or("unknown")
+                 << " starts " << n << " times";
+    }
+
     l.lock();
     cond_.wait_until(l, getSysClock(timeoutMs), breakOut);
     wakeUp_ = false;
