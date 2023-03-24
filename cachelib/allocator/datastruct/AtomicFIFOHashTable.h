@@ -17,9 +17,7 @@ class AtomicFIFOHashTable {
     initHashtable();
   }
 
-  ~AtomicFIFOHashTable() {
-    hashTable_ = nullptr;
-  }
+  ~AtomicFIFOHashTable() { hashTable_ = nullptr; }
 
   bool initialized() const noexcept { return hashTable_ != nullptr; }
 
@@ -47,8 +45,8 @@ class AtomicFIFOHashTable {
         continue;
       }
       if (age > fifoSize_) {
-        __atomic_compare_exchange_n(&hashTable_[bucketIdx + i], &zero, 0, true,
-                                    __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+        __atomic_compare_exchange_n(&hashTable_[bucketIdx + i], &valInTable, 0,
+                                    true, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
         continue;
       }
       if (matchKey(valInTable, key)) {
@@ -87,7 +85,7 @@ class AtomicFIFOHashTable {
  private:
   size_t getBucketIdx(uint32_t key) {
     // TODO: we can use & directly
-    size_t bucketIdx = (size_t) key % numElem_;
+    size_t bucketIdx = (size_t)key % numElem_;
     bucketIdx = bucketIdx & bucketIdxMask_;
     return bucketIdx;
   }
@@ -120,8 +118,6 @@ class AtomicFIFOHashTable {
   std::atomic<int64_t> numInserts_{0};
   std::atomic<int64_t> numEvicts_{0};
   alignas(64) std::unique_ptr<uint64_t[]> hashTable_{nullptr};
-  
-  // mutable folly::cacheline_aligned<uint64_t> hashTable_;
 };
 
 } // namespace cachelib
