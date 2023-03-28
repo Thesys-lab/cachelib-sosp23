@@ -1249,6 +1249,10 @@ CacheAllocator<CacheTrait>::findEviction(PoolId pid, ClassId cid) {
   // or until the search limit has been exhausted
   unsigned int searchTries = 0;
   auto itr = mmContainer.getEvictionIterator();
+  if (itr.get() == nullptr) {
+    XLOG(ERR) << "iterator is null";
+  }
+
   while ((config_.evictionSearchTries == 0 ||
           config_.evictionSearchTries > searchTries) &&
          itr) {
@@ -1320,6 +1324,7 @@ CacheAllocator<CacheTrait>::findEviction(PoolId pid, ClassId cid) {
       itr.resetToBegin();
     }
   }
+  XLOGF(ERR, "Failed to find eviction {} tries iter {}", searchTries, itr.get());
   return nullptr;
 }
 

@@ -30,8 +30,9 @@ class AtomicFIFOHashTable {
   bool initialized() const noexcept { return hashTable_ != nullptr; }
 
   void initHashtable() noexcept {
-    hashTable_ = std::unique_ptr<uint64_t[]>(new uint64_t[numElem_]);
-    memset(hashTable_.get(), 0, numElem_ * sizeof(uint64_t));
+    auto hashTable = std::unique_ptr<uint64_t[]>(new uint64_t[numElem_]);
+    memset(hashTable.get(), 0, numElem_ * sizeof(uint64_t));
+    hashTable_ = std::move(hashTable);
 
     // printf("create table fifoSize_ %zu numElem_ %zu\n", fifoSize_, numElem_);
   }

@@ -35,7 +35,7 @@ void AtomicDList<T, HookPtr>::linkAtHead(T& node) noexcept {
     XDCHECK_EQ(tail_, nullptr);
 
     T* tail = nullptr;
-    tail_.compare_exchange_strong(tail, &node);
+    tail_.compare_exchange_weak(tail, &node);
   } else {
     setPrev(*oldHead, &node);
   }
@@ -43,22 +43,12 @@ void AtomicDList<T, HookPtr>::linkAtHead(T& node) noexcept {
   size_++;
 }
 
+
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start,
                                                  T& end,
                                                  size_t n) noexcept {
   setPrev(start, nullptr);
-
-  // int c = 1;
-  // T *curr = &start;
-  // while (curr && curr != &end) {
-  //   c += 1;
-  //   curr = getNext(*curr);
-  // }
-  // if (c != n) {
-  //   printf("c = %d, n = %ld\n", c, n);
-  //   abort();
-  // }
 
   T* oldHead = head_.load();
   setNext(end, oldHead);
@@ -73,7 +63,7 @@ void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start,
     XDCHECK_EQ(tail_, nullptr);
 
     T* tail = nullptr;
-    tail_.compare_exchange_strong(tail, &end);
+    tail_.compare_exchange_weak(tail, &end);
   } else {
     setPrev(*oldHead, &end);
   }
@@ -102,7 +92,7 @@ void AtomicDList<T, HookPtr>::linkAtHeadFromADList(
     XDCHECK_EQ(tail_, nullptr);
 
     T* tail = nullptr;
-    tail_.compare_exchange_strong(tail, &oTail);
+    tail_.compare_exchange_weak(tail, &oTail);
   } else {
     setPrev(*oldHead, &oTail);
   }
@@ -120,20 +110,16 @@ T* AtomicDList<T, HookPtr>::removeTail() noexcept {
   }
   T* prev = getPrev(*tail);
 
-  /* newly added */
-  while (prev == nullptr && size_.load() > 1) {
-    tail = tail_.load();
-    prev = getPrev(*tail);
-  }
-
+  // if tail has not changed, the prev is correct
   while (!tail_.compare_exchange_weak(tail, prev)) {
     prev = getPrev(*tail);
   }
 
   // if the tail was also the head
-  T* oldHead = tail;
-  head_.compare_exchange_weak(oldHead, nullptr);
-
+  if (head_ == tail) {
+    T* oldHead = tail;
+    head_.compare_exchange_weak(oldHead, nullptr);
+  }
   // do not do this since this object will be evicted/promoted
   // else {
   //   setNext(*prev, nullptr);
@@ -143,6 +129,50 @@ T* AtomicDList<T, HookPtr>::removeTail() noexcept {
 
   size_--;
 
+  return tail;
+}
+
+/* note that the next of the tail may not be nullptr  */
+template <typename T, AtomicDListHook<T> T::*HookPtr>
+T* AtomicDList<T, HookPtr>::removeNTail(int n) noexcept {
+    LockHolder l(*mtx_);
+
+  T* tail = tail_.load();
+  if (tail == nullptr) {
+    // empty list
+    return nullptr;
+  }
+
+  T* next = tail;
+  T* curr = getPrev(*next);
+
+  if (curr == nullptr) {
+    return nullptr;
+  }
+
+  int i = 1;
+  for (; i < n && curr != nullptr; i++) {
+    next = curr;
+    curr = getPrev(*next);
+  }
+  
+
+
+  if (curr == nullptr) {
+    // find the next 
+    tail_ = next;
+    next = getNext(*next);
+    setNext(*tail_, nullptr);
+    setPrev(*next, nullptr);
+    size_ -= (i - 1);
+  } else {
+    tail_ = curr;
+    setNext(*curr, nullptr);
+    setPrev(*next, nullptr);
+    size_ -= i;
+  }
+
+  // printf("removed %d nodes, size %lu\n", i, size_.load());
   return tail;
 }
 

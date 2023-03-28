@@ -40,27 +40,34 @@ void mycache_init(int64_t cache_size_in_mb, unsigned int hashpower,
   config.setCacheSize(cache_size_in_mb * 1024 * 1024)
       .setCacheName("My cache")
       // .enableItemReaperInBackground(std::chrono::seconds(1), {})
-      // .enablePoolRebalancing(rebalance_strategy, std::chrono::seconds(1))
-      .setAccessConfig({hashpower, hashpower-2})
+      // .enablePoolRebalancing(rebalance_strategy2, std::chrono::seconds(1))
+#ifdef USE_STRICTLRU
+      .setAccessConfig({hashpower, 1})
+#else
+      .setAccessConfig({hashpower, hashpower})
+#endif
       .validate();
 
   // config.poolRebalanceInterval = std::chrono::seconds(10);
   // config.reaperInterval = std::chrono::seconds(10);
   // print_config(config);
   *cache_p = new Cache(config);
+#ifdef USE_STRICTLRU
+  Cache::MMConfig mm_config;
+  mm_config.lruRefreshTime = 0;
+  *pool_p = (*cache_p)->addPool("default",
+                                (*cache_p)->getCacheMemoryStats().ramCacheSize,
+                                {}, mm_config);
+#else
   *pool_p = (*cache_p)->addPool("default",
                                 (*cache_p)->getCacheMemoryStats().ramCacheSize);
+#endif
 
   // Cache::MMConfig mm_config;
   // mm_config.lruInsertionPointSpec = 2;
   // *pool_p = (*cache_p)->addPool("default",
   //                               (*cache_p)->getCacheMemoryStats().ramCacheSize);
 
-  // Cache::MMConfig mm_config;
-  // mm_config.lruRefreshTime = 0;
-  // *pool_p = (*cache_p)->addPool("default",
-  //                               (*cache_p)->getCacheMemoryStats().ramCacheSize,
-  //                               {}, mm_config);
 
   util::setCurrentTimeSec(1);
   assert(util::getCurrentTimeSec() == 1);
@@ -109,6 +116,7 @@ int cache_set(Cache *cache, PoolId pool, struct request *req) {
   // util::setCurrentTimeSec(req->timestamp);
 
   auto key = gen_key(req);
+  // std::this_thread::sleep_for(std::chrono::microseconds(100));
 
   req->val_len += req->key_len - key.size();
   if (req->val_len < 0) req->val_len = 0;

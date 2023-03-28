@@ -69,8 +69,6 @@ if (${FORCE_COLORED_OUTPUT})
     endif ()
 endif ()
 
-# add_definitions(-DFULL_COMPILE)
-
 
 ############## end of new changes ################
 

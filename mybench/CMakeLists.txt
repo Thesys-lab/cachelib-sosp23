@@ -30,6 +30,34 @@ find_package(cachelib CONFIG REQUIRED)
 find_package(fmt)
 
 # add_library (mybenchlib reader.c)
+add_executable(strictlru main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
+target_compile_definitions(strictlru PRIVATE USE_STRICTLRU)
+target_link_libraries(strictlru cachelib fmt::fmt atomic) 
 
-add_executable(mybench main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
-target_link_libraries(mybench cachelib fmt::fmt atomic) 
+add_executable(lru main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
+target_compile_definitions(lru PRIVATE USE_LRU)
+target_link_libraries(lru cachelib fmt::fmt atomic) 
+
+add_executable(twoq main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
+target_compile_definitions(twoq PRIVATE USE_TWOQ)
+target_link_libraries(twoq cachelib fmt::fmt atomic) 
+
+add_executable(tinylfu main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
+target_compile_definitions(tinylfu PRIVATE USE_TINYLFU)
+target_link_libraries(tinylfu cachelib fmt::fmt atomic)
+
+add_executable(clock main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
+target_compile_definitions(clock PRIVATE USE_CLOCK)
+target_link_libraries(clock cachelib fmt::fmt atomic)
+
+add_executable(atomicclock main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
+target_compile_definitions(atomicclock PRIVATE USE_ATOMICCLOCK)
+target_link_libraries(atomicclock cachelib fmt::fmt atomic) 
+
+add_executable(s3fifo main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
+target_compile_definitions(s3fifo PRIVATE USE_S3FIFO)
+target_link_libraries(s3fifo cachelib fmt::fmt atomic) 
+
+
+
+

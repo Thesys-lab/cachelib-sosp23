@@ -124,19 +124,15 @@ class QDList {
       markMain(node);
       unmarkProbationary(node);
     } else {
-      // if (newObjPQueue_.size() >= 8) {
-      //     T* curr;
-      //     while (newObjPQueue_.read(curr)) {
-      //         pfifo_->linkAtHead(*curr);
-      //     }
-      // }
-      // newObjPQueue_.blockingWrite(&node);
-
       pfifo_->linkAtHead(node);
       markProbationary(node);
       unmarkMain(node);
     }
   }
+
+  void evictPFifo() noexcept;
+
+  void evictMFifo() noexcept;
 
   // Bit MM_BIT_0 is used to record if the item is hot.
   void markProbationary(T& node) noexcept {
@@ -187,7 +183,7 @@ class QDList {
 
   mutable folly::cacheline_aligned<Mutex> mtx_;
 
-  constexpr static double pRatio_ = 0.1;
+  constexpr static double pRatio_ = 0.05;
 
   AtomicFIFOHashTable hist_;
 

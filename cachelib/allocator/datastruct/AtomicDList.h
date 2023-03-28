@@ -159,6 +159,8 @@ class AtomicDList {
   // @param node node to be linked at the head
   T* removeTail() noexcept;
 
+  T* removeNTail(int n) noexcept;
+
   // removes the node completely from the linked list and cleans up the node
   // appropriately by setting its next and prev as nullptr.
   void remove(T& node) noexcept;
@@ -184,73 +186,6 @@ class AtomicDList {
 
   bool isAccessed(const T& node) const noexcept {
     return node.template isFlagSet<RefFlags::kMMFlag1>();
-  }
-
-  void print() const {
-    printf("size %zu: ", size_.load());
-    T* curr = head_.load();
-    int n = 0;
-    while (curr) {
-      n += 1;
-      printf("%p|%p|%p -> ", getPrev(*curr), curr, getNext(*curr));
-      curr = getNext(*curr);
-      if (n > 8) {
-        printf("... ...");
-        break;
-      }
-    }
-    printf("\n");
-  }
-
-  void verify() const {
-    // print();
-    if (head_.load() == nullptr) {
-      CHECK_EQ(tail_.load(), nullptr);
-      CHECK_EQ(size_.load(), 0);
-      return;
-    }
-    if (head_.load() == tail_.load()) {
-      CHECK_EQ(size_.load(), 1);
-      return;
-    }
-    if (getNext(*head_.load()) == tail_.load()) {
-      CHECK_EQ(size_.load(), 2);
-      return;
-    }
-
-    CHECK_NE(tail_.load(), nullptr);
-    CHECK_GT(size_.load(), 0);
-    T* prev = head_.load();
-    T* curr = getNext(*prev);
-    T* next = getNext(*curr);
-
-    size_t count = 2;
-    while (curr != nullptr) {
-      if (getPrev(*curr) != prev) {
-        LOG(ERROR) << count << "/" << size_.load() << " prev: " << prev << " curr: " << curr
-                   << " next: " << next;
-      }
-      if (next != nullptr && getPrev(*next) != curr) {
-        LOG(ERROR) << count << "/" << size_.load() << " prev: " << prev << " curr: " << curr
-                   << " next: " << next;
-      }
-      prev = curr;
-      curr = next;
-      if (curr != nullptr) {
-        next = getNext(*curr);
-      } else {
-        XDCHECK_EQ(next, nullptr);
-      }
-      count++;
-    }
-
-    if (prev != tail_.load()) {
-      LOG(ERROR) << "prev: " << prev << " tail: " << tail_.load();
-    }
-
-    if (count != size_.load()) {
-      LOG(ERROR) << "count: " << count << " size: " << size_.load();
-    }
   }
 
   // Iterator interface for the double linked list. Supports both iterating

@@ -52,7 +52,7 @@ static void pin_thread_to_core(int core_id) {
 static void trace_replay_run_thread(struct bench_data *bdata,
                                     bench_opts_t *opts, int thread_id,
                                     struct thread_res *res) {
-  // pin_thread_to_core(thread_id - 1);
+  pin_thread_to_core(thread_id - 1);
   // pthread_setname_np(pthread_self(), "trace_replay_" + to_string(thread_id));
 
   struct request *req = new_request();
@@ -116,8 +116,8 @@ static void aggregate_results(struct bench_data *bdata, bench_opts_t *opts,
   }
   bdata->trace_time = max_trace_time;
   util::setCurrentTimeSec(min_trace_time);
-  printf("min trace time: %ld, max trace time: %ld\n", min_trace_time,
-         max_trace_time);
+  // printf("min trace time: %ld, max trace time: %ld\n", min_trace_time,
+  //        max_trace_time);
 }
 
 void trace_replay_run_mt(struct bench_data *bdata, bench_opts_t *opts) {
