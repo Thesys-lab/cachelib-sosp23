@@ -19,7 +19,7 @@ namespace cachelib {
 
 // used for single thread
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
+T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
   size_t listSize = pfifo_->size() + mfifo_->size();
   if (listSize == 0) {
     return nullptr;
@@ -28,9 +28,10 @@ T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
   T* curr = nullptr;
   if (!hist_.initialized()) {
     LockHolder l(*mtx_);
-
-    hist_.setFIFOSize(listSize / 2);
-    hist_.initHashtable();
+    if (!hist_.initialized()) {
+      hist_.setFIFOSize(listSize / 2);
+      hist_.initHashtable();
+    }
   }
 
   while (true) {
@@ -42,7 +43,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
       }
       if (pfifo_->isAccessed(*curr)) {
         pfifo_->unmarkAccessed(*curr);
-        // XDCHECK(isProbationary(*curr));
+        XDCHECK(isProbationary(*curr));
         unmarkProbationary(*curr);
         markMain(*curr);
         mfifo_->linkAtHead(*curr);
@@ -66,7 +67,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
 }
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
+T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
   size_t listSize = pfifo_->size() + mfifo_->size();
   if (listSize == 0 && evictCandidateQueue_.size() == 0) {
     return nullptr;
@@ -75,18 +76,20 @@ T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
   T* curr = nullptr;
   if (!hist_.initialized()) {
     LockHolder l(*mtx_);
-    hist_.setFIFOSize(listSize / 2);
-    hist_.initHashtable();
-
+    if (!hist_.initialized()) {
+      hist_.setFIFOSize(listSize / 2);
+      hist_.initHashtable();
 // #define ENABLE_SCALABILITY
 #ifdef ENABLE_SCALABILITY
-    if (evThread_.get() == nullptr) {
-      evThread_ = std::make_unique<std::thread>(&QDList::threadFunc, this);
-    }
+      if (evThread_.get() == nullptr) {
+        evThread_ = std::make_unique<std::thread>(&QDList::threadFunc, this);
+      }
 #endif
+    }
   }
 
-  if (evictCandidateQueue_.sizeGuess() < nMaxEvictionCandidates_ / 4) {
+  size_t sz = evictCandidateQueue_.sizeGuess();
+  if (sz < nMaxEvictionCandidates_ / (2 + sz % 8)) {
     prepareEvictionCandidates();
   }
 
@@ -100,78 +103,158 @@ T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
   return curr;
 }
 
+// template <typename T, AtomicDListHook<T> T::*HookPtr>
+// void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
+//   T* curr = nullptr;
+//   T* mfifo_head = nullptr;
+//   T* mfifo_tail = nullptr;
+//   int nNodeLocal = 0;
+
+//   for (int i = 0; i < nCandidateToPrepare(); i++) {
+//     // if (evictCandidateQueue_.sizeGuess() >=
+//     //     (ssize_t)nMaxEvictionCandidates_ - 16) {
+//     //   return;
+//     // }
+
+//     if (pfifo_->size() > (double)(pfifo_->size() + mfifo_->size()) * pRatio_)
+//     {
+//       // evict from probationary FIFO
+//       curr = pfifo_->removeTail();
+//       if (curr != nullptr) {
+//         if (pfifo_->isAccessed(*curr)) {
+//           pfifo_->unmarkAccessed(*curr);
+//           XDCHECK(isProbationary(*curr));
+//           unmarkProbationary(*curr);
+//           markMain(*curr);
+//           mfifo_->linkAtHead(*curr);
+
+//           // // link to local list
+//           // if (mfifo_head == nullptr) {
+//           //   mfifo_head = curr;
+//           //   mfifo_tail = curr;
+//           // } else {
+//           //   mfifo_->setNext(*curr, mfifo_head);
+//           //   mfifo_->setPrev(*mfifo_head, curr);
+//           //   mfifo_head = curr;
+//           // }
+//           // nNodeLocal += 1;
+
+//         } else {
+//           hist_.insert(hashNode(*curr));
+//           if (!evictCandidateQueue_.write(curr)) {
+//             pfifo_->linkAtHead(*curr);
+//           }
+//         }
+//       }
+//     } else {
+//       curr = mfifo_->removeTail();
+//       if (curr != nullptr) {
+//         if (mfifo_->isAccessed(*curr)) {
+//           mfifo_->unmarkAccessed(*curr);
+//           mfifo_->linkAtHead(*curr);
+
+//           // // link to local list
+//           // if (mfifo_head == nullptr) {
+//           //   mfifo_head = curr;
+//           //   mfifo_tail = curr;
+//           // } else {
+//           //   mfifo_->setNext(*curr, mfifo_head);
+//           //   mfifo_->setPrev(*mfifo_head, curr);
+//           //   mfifo_head = curr;
+//           // }
+//           // nNodeLocal += 1;
+
+//         } else {
+//           if (!evictCandidateQueue_.write(curr)) {
+//             pfifo_->linkAtHead(*curr);
+//           }
+//         }
+//       }
+//     }
+//   }
+
+//   // if (mfifo_head != nullptr) {
+//   //   // link local list to the global list
+//   //   mfifo_->linkAtHeadMultiple(*mfifo_head, *mfifo_tail, nNodeLocal);
+//   // }
+// }
+
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
-  T* curr = nullptr;
-  T* mfifo_head = nullptr;
-  T* mfifo_tail = nullptr;
-  int nNodeLocal = 0;
-
-  for (int i = 0; i < nCandidateToPrepare(); i++) {
-    if (evictCandidateQueue_.sizeGuess() >=
-        (ssize_t)nMaxEvictionCandidates_ - 16) {
-      return;
-    }
-
-    if (pfifo_->size() > (double)(pfifo_->size() + mfifo_->size()) * pRatio_) {
+  if (pfifo_->size() > (double)(pfifo_->size() + mfifo_->size()) * pRatio_) {
+    for (int i = 0; i < nCandidateToPrepare(); i++) {
       // evict from probationary FIFO
-      curr = pfifo_->removeTail();
-      if (curr != nullptr) {
-        if (pfifo_->isAccessed(*curr)) {
-          pfifo_->unmarkAccessed(*curr);
-          XDCHECK(isProbationary(*curr));
-          unmarkProbationary(*curr);
-          markMain(*curr);
-          // mfifo_->linkAtHead(*curr);
+      evictPFifo();
+    }
+  } else {
+    for (int i = 0; i < nCandidateToPrepare(); i++) {
+      evictMFifo();
+    }
+  }
+}
 
-          // link to local list
-          if (mfifo_head == nullptr) {
-            mfifo_head = curr;
-            mfifo_tail = curr;
-          } else {
-            mfifo_->setNext(*curr, mfifo_head);
-            mfifo_->setPrev(*mfifo_head, curr);
-            mfifo_head = curr;
-          }
-          nNodeLocal += 1;
+template <typename T, AtomicDListHook<T> T::*HookPtr>
+void QDList<T, HookPtr>::evictPFifo() noexcept {
+  T* curr = nullptr;
 
-        } else {
-          hist_.insert(hashNode(*curr));
-          if (!evictCandidateQueue_.write(curr)) {
-            pfifo_->linkAtHead(*curr);
-          }
-        }
-      }
+  // evict from probationary FIFO
+  curr = pfifo_->removeTail();
+  if (curr != nullptr) {
+    if (pfifo_->isAccessed(*curr)) {
+      pfifo_->unmarkAccessed(*curr);
+      XDCHECK(isProbationary(*curr));
+      unmarkProbationary(*curr);
+      markMain(*curr);
+      mfifo_->linkAtHead(*curr);
     } else {
-      curr = mfifo_->removeTail();
-      if (curr != nullptr) {
-        if (mfifo_->isAccessed(*curr)) {
-          mfifo_->unmarkAccessed(*curr);
-          // mfifo_->linkAtHead(*curr);
-
-          // link to local list
-          if (mfifo_head == nullptr) {
-            mfifo_head = curr;
-            mfifo_tail = curr;
-          } else {
-            mfifo_->setNext(*curr, mfifo_head);
-            mfifo_->setPrev(*mfifo_head, curr);
-            mfifo_head = curr;
-          }
-          nNodeLocal += 1;
-
-        } else {
-          if (!evictCandidateQueue_.write(curr)) {
-            pfifo_->linkAtHead(*curr);
-          }
-        }
+      hist_.insert(hashNode(*curr));
+      if (!evictCandidateQueue_.write(curr)) {
+        pfifo_->linkAtHead(*curr);
       }
     }
   }
+}
 
-  if (mfifo_head != nullptr) {
-    // link local list to the global list
-    mfifo_->linkAtHeadMultiple(*mfifo_head, *mfifo_tail, nNodeLocal);
+// template <typename T, AtomicDListHook<T> T::*HookPtr>
+// void QDList<T, HookPtr>::evictPFifo() noexcept {
+//   T* curr = nullptr;
+
+//   // evict from probationary FIFO
+//   curr = pfifo_->removeNTail(16);
+//   T* prev = nullptr;
+//   int n = 0;
+//   while (curr != nullptr) {
+//     prev = pfifo_->getPrev(*curr);
+//     n += 1;
+//     if (pfifo_->isAccessed(*curr)) {
+//       pfifo_->unmarkAccessed(*curr);
+//       XDCHECK(isProbationary(*curr));
+//       unmarkProbationary(*curr);
+//       markMain(*curr);
+//       mfifo_->linkAtHead(*curr);
+//     } else {
+//       hist_.insert(hashNode(*curr));
+//       if (!evictCandidateQueue_.write(curr)) {
+//         pfifo_->linkAtHead(*curr);
+//       }
+//     }
+//     curr = prev;
+//   }
+// }
+
+template <typename T, AtomicDListHook<T> T::*HookPtr>
+void QDList<T, HookPtr>::evictMFifo() noexcept {
+  T* curr = nullptr;
+  curr = mfifo_->removeTail();
+  if (curr != nullptr) {
+    if (mfifo_->isAccessed(*curr)) {
+      mfifo_->unmarkAccessed(*curr);
+      mfifo_->linkAtHead(*curr);
+    } else {
+      if (!evictCandidateQueue_.write(curr)) {
+        pfifo_->linkAtHead(*curr);
+      }
+    }
   }
 }
 

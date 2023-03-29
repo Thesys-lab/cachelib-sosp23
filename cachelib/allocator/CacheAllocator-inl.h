@@ -1324,7 +1324,7 @@ CacheAllocator<CacheTrait>::findEviction(PoolId pid, ClassId cid) {
       itr.resetToBegin();
     }
   }
-  XLOGF(ERR, "Failed to find eviction {} tries iter {}", searchTries, itr.get());
+  // XLOGF(ERR, "Failed to find eviction {} tries iter {}", searchTries, itr.get());
   return nullptr;
 }
 

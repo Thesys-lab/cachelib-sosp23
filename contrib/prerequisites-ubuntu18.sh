@@ -22,7 +22,6 @@ sudo apt-get install -y \
   libboost-all-dev \
   libevent-dev \
   libdouble-conversion-dev \
-  libgoogle-glog-dev \
   libgflags-dev \
   libiberty-dev \
   liblz4-dev \

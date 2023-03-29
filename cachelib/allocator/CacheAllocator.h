@@ -2149,6 +2149,7 @@ class CacheAllocator : public CacheBase {
 namespace facebook {
 namespace cachelib {
 
+#define FULL_COMPILE
 #ifdef FULL_COMPILE
 // Declare templates ahead of use to reduce compilation time
 extern template class CacheAllocator<LruCacheTrait>;

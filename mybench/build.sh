@@ -5,11 +5,12 @@ set -euo pipefail
 
 BUILD_TYPE=RelWithDebInfo
 
-# sudo apt purge libgoogle-glog-dev libgoogle-glog0v5 || true
+clear
 pushd ../; 
 # ./contrib/build.sh -j -v;
 # cd build-cachelib; make -j > /dev/null && make install > /dev/null;
-cd build-cachelib; ninja && ninja install >/dev/null;
+# cp cachelib/allocator/*.h opt/cachelib/include/cachelib/allocator/
+cd build-cachelib; ninja && ninja install;
 popd;
 
 # cp -r ../cachelib/cmake ../opt/cachelib/ || true
@@ -31,5 +32,16 @@ export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib64/pkgconfig:${PKG_CONF
 LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH
 
+# rm -r _build || true
+mkdir -p _build 2>/dev/null || true
+cd _build && cmake $CMAKE_PARAMS -G Ninja .. >/dev/null
+# ninja && ./mybench /disk/data/w80.oracleGeneral.bin 100 86400 4
+# exit
+
 export GLOG_logtostderr=1
-# ninja && ./mybench /disk/data/fb_assoc_altoona_leader.oracleGeneral 16000 86400 1
+ninja 
+# ./s3fifo /disk/data/de/w80.oracleGeneral.bin 1000 24 1
+# numactl --membind=0 gdb -ex r --args ./s3fifo /disk/data/zipf1.0.oracleGeneral.bin 16000 28 16
+# numactl --membind=0 ./mybench /disk/data/de/cluster52.oracleGeneral.sample10 8000 26 32
+
+

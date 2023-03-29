@@ -18,6 +18,7 @@
 
 namespace facebook {
 namespace cachelib {
+#define FULL_COMPILE
 #ifdef FULL_COMPILE
 template class CacheAllocator<LruCacheTrait>;
 template class CacheAllocator<LruCacheWithSpinBucketsTrait>;

@@ -17,6 +17,7 @@
 #pragma once
 #include "cachelib/allocator/ChainedHashTable.h"
 // #include "cachelib/allocator/BucketHashTable.h"
+#define FULL_COMPILE
 #ifdef FULL_COMPILE
 #include "cachelib/allocator/MM2Q.h"
 #include "cachelib/allocator/MMLru.h"
