@@ -42,7 +42,7 @@ static void pin_thread_to_core(int core_id) {
 #if !defined(__APPLE__)
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
-  CPU_SET(core_id, &cpuset);
+  CPU_SET(core_id * 2, &cpuset);
   pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
   LOG(INFO) << "pin thread " << pthread_self() << " to core " << core_id;

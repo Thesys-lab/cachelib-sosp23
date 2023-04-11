@@ -40,7 +40,13 @@ cd _build && cmake $CMAKE_PARAMS -G Ninja .. >/dev/null
 
 export GLOG_logtostderr=1
 ninja 
+# gdb -ex r --args ./s3fifo /disk/data/cluster52.oracleGeneral.sample10 400 24 2
+./s3fifo /disk/data/cluster52.oracleGeneral.sample10 200 24 1
 # ./s3fifo /disk/data/de/w80.oracleGeneral.bin 1000 24 1
+./_build/clock /disk/data/meta/meta_kvcache_traces_1.oracleGeneral.bin 1000 24 1 &
+./_build/lru /disk/data/meta/meta_kvcache_traces_1.oracleGeneral.bin 1000 24 1 &
+./_build/twoq /disk/data/meta/meta_kvcache_traces_1.oracleGeneral.bin 1000 24 1 &
+./_build/tinylfu /disk/data/meta/meta_kvcache_traces_1.oracleGeneral.bin 1000 24 1 &
 # numactl --membind=0 gdb -ex r --args ./s3fifo /disk/data/zipf1.0.oracleGeneral.bin 16000 28 16
 # numactl --membind=0 ./mybench /disk/data/de/cluster52.oracleGeneral.sample10 8000 26 32
 

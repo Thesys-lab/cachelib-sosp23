@@ -25,7 +25,7 @@ for size in 500 1000 2000 4000; do
          sz=$(echo "$size * ${nThread}" | bc)
          hp=$(echo "18 + ${i} + l(${nThread})/l(2)" | bc -l | cut -d'.' -f1)
          echo "nThread ${nThread} sz $sz hp $hp"
-         numactl --membind =0 ./_build/${algo} /disk/data/zipf1.0.oracleGeneral.bin_1_20 $sz $hp ${nThread} | tee -a res
+         numactl --membind=0 ./_build/${algo} /disk/data/zipf1.0.oracleGeneral.bin_1_20 $sz $hp ${nThread} | tee -a res
       done
    done
 done
@@ -38,10 +38,34 @@ for size in 200 500 1000 2000 4000; do
          sz=$(echo "$size * ${nThread}" | bc)
          hp=$(echo "21 + ${i} + l(${nThread})/l(2)" | bc -l | cut -d'.' -f1)
          echo "nThread ${nThread} sz $sz hp $hp"
-         numactl --membind =0 ./_build/${algo} /disk/data/cluster52.oracleGeneral.sample10.bin $sz $hp ${nThread} | tee -a cluster52
+         numactl --membind=0 ./_build/${algo} /disk/data/cluster52.oracleGeneral.sample10.bin $sz $hp ${nThread} | tee -a twr
       done
    done
 done
 
 
 
+#!/bin/bash
+
+# Define a cleanup function
+cleanup() {
+  echo "Killing the process..."
+  kill $background_pid
+}
+
+# Set the trap to catch SIGINT and call the cleanup function
+trap cleanup SIGINT
+
+# Loop
+while true; do
+  echo "Starting background process..."
+  
+  # Start your background process here
+  sleep 10 &
+  background_pid=$!
+  
+  # Wait for the background process to finish
+  wait $background_pid
+  
+  echo "Background process finished."
+done
