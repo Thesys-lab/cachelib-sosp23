@@ -42,7 +42,7 @@ namespace facebook {
 namespace cachelib {
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-class QDList {
+class S3FIFOList {
  public:
   using Mutex = folly::DistributedMutex;
   using LockHolder = std::unique_lock<Mutex>;
@@ -50,26 +50,26 @@ class QDList {
   using PtrCompressor = typename T::PtrCompressor;
   using ADList = AtomicDList<T, HookPtr>;
   using RefFlags = typename T::Flags;
-  using QDListObject = serialization::QDListObject;
+  using S3FIFOListObject = serialization::S3FIFOListObject;
 
-  QDList() = default;
-  QDList(const QDList&) = delete;
-  QDList& operator=(const QDList&) = delete;
-  ~QDList() {
+  S3FIFOList() = default;
+  S3FIFOList(const S3FIFOList&) = delete;
+  S3FIFOList& operator=(const S3FIFOList&) = delete;
+  ~S3FIFOList() {
     stop_ = true;
     evThread_->join();
   }
 
-  QDList(PtrCompressor compressor) noexcept {
+  S3FIFOList(PtrCompressor compressor) noexcept {
     pfifo_ = std::make_unique<ADList>(compressor);
     mfifo_ = std::make_unique<ADList>(compressor);
   }
 
-  // Restore QDList from saved state.
+  // Restore S3FIFOList from saved state.
   //
-  // @param object              Save QDList object
+  // @param object              Save S3FIFOList object
   // @param compressor          PtrCompressor object
-  QDList(const QDListObject& object, PtrCompressor compressor) {
+  S3FIFOList(const S3FIFOListObject& object, PtrCompressor compressor) {
     pfifo_ = std::make_unique<ADList>(*object.pfifo(), compressor);
     mfifo_ = std::make_unique<ADList>(*object.mfifo(), compressor);
   }
@@ -77,8 +77,8 @@ class QDList {
   /**
    * Exports the current state as a thrift object for later restoration.
    */
-  QDListObject saveState() const {
-    QDListObject state;
+  S3FIFOListObject saveState() const {
+    S3FIFOListObject state;
     *state.pfifo() = pfifo_->saveState();
     *state.mfifo() = mfifo_->saveState();
     return state;
@@ -99,7 +99,7 @@ class QDList {
   void prepareEvictionCandidates() noexcept;
 
   void threadFunc() noexcept {
-    XLOG(INFO) << "QDList thread has started";
+    XLOG(INFO) << "S3FIFOList thread has started";
     T* curr = nullptr;
 
     // cpu_set_t cpuset;
@@ -115,7 +115,7 @@ class QDList {
         prepareEvictionCandidates();
       }
     }
-    printf("QDList thread has stopped\n");
+    printf("S3FIFOList thread has stopped\n");
   }
 
   void add(T& node) noexcept {
@@ -198,4 +198,4 @@ class QDList {
 } // namespace cachelib
 } // namespace facebook
 
-#include "cachelib/allocator/datastruct/QDList-inl.h"
+#include "cachelib/allocator/datastruct/S3FIFOList-inl.h"

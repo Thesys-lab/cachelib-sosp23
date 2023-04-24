@@ -9,8 +9,10 @@ using Cache = facebook::cachelib::LruAllocator;
 using Cache = facebook::cachelib::ClockAllocator;
 #elif defined(USE_ATOMICCLOCK)
 using Cache = facebook::cachelib::AtomicClockAllocator;
+#elif defined(USE_ATOMICCLOCKBUFFERED)
+using Cache = facebook::cachelib::AtomicClockBufferedAllocator;
 #elif defined(USE_S3FIFO)
-using Cache = QDLPAllocator;
+using Cache = S3FIFOAllocator;
 #elif defined(USE_TWOQ)
 using Cache = Lru2QAllocator;
 #elif defined(USE_TINYLFU)

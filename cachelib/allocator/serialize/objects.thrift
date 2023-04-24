@@ -179,22 +179,45 @@ struct MMAtomicClockCollection {
   1: required map<i32, map<i32, MMAtomicClockObject>> pools,
 }
 
-struct MMQDLPConfig {
+struct MMAtomicClockBufferedConfig {
   2: required bool updateOnWrite,
+  3: required i32 lruInsertionPointSpec,
   4: bool updateOnRead = true,
+  5: bool tryLockUpdate = false,
 }
 
-struct MMQDLPObject {
-  1: required MMQDLPConfig config,
+struct MMAtomicClockBufferedObject {
+  1: required MMAtomicClockBufferedConfig config,
 
   // number of evictions for this MM object.
   5: i64 evictions = 0,
 
-  8: required QDListObject qdlist,
+  6: required i64 insertionPoint,
+  7: required i64 tailSize,
+  8: required AtomicClockListBufferedObject fifo,
+  9: required i64 compressedInsertionPoint,
 }
 
-struct MMQDLPCollection {
-  1: required map<i32, map<i32, MMQDLPObject>> pools,
+struct MMAtomicClockBufferedCollection {
+  1: required map<i32, map<i32, MMAtomicClockBufferedObject>> pools,
+}
+
+struct MMS3FIFOConfig {
+  2: required bool updateOnWrite,
+  4: bool updateOnRead = true,
+}
+
+struct MMS3FIFOObject {
+  1: required MMS3FIFOConfig config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  8: required S3FIFOListObject qdlist,
+}
+
+struct MMS3FIFOCollection {
+  1: required map<i32, map<i32, MMS3FIFOObject>> pools,
 }
 
 struct ChainedHashTableObject {

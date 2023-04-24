@@ -27,8 +27,9 @@ template class CacheAllocator<TinyLFUCacheTrait>;
 
 template class CacheAllocator<ClockCacheTrait>;
 template class CacheAllocator<AtomicClockCacheTrait>;
+template class CacheAllocator<AtomicClockBufferedCacheTrait>;
 #endif
-template class CacheAllocator<QDLPCacheTrait>;
+template class CacheAllocator<S3FIFOCacheTrait>;
 
 } // namespace cachelib
 } // namespace facebook

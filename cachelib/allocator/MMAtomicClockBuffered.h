@@ -30,7 +30,7 @@
 #include "cachelib/allocator/Cache.h"
 #include "cachelib/allocator/CacheStats.h"
 #include "cachelib/allocator/Util.h"
-#include "cachelib/allocator/datastruct/QDList.h"
+#include "cachelib/allocator/datastruct/AtomicClockListBuffered.h"
 #include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 #include "cachelib/common/CompilerUtils.h"
 #include "cachelib/common/Mutex.h"
@@ -38,44 +38,44 @@
 namespace facebook {
 namespace cachelib {
 
-// CacheLib's modified LRU policy.
-// In classic LRU, the items form a queue according to the last access time.
-// Items are inserted to the head of the queue and removed from the tail of the
-// queue. Items accessed (used) are moved (promoted) to the head of the queue.
-// CacheLib made two variations on top of the classic LRU:
-// 1. Insertion point. The items are inserted into a configured insertion point
-// instead of always to the head.
-// 2. Delayed promotion. Items get promoted at most once in any lru refresh time
-// window. lru refresh time and lru refresh ratio controls this internval
-// length.
-class MMQDLP {
+// FIFO-reinsertion
+// use n bits to track whether an object's frequency / has been accessed (n=1 or
+// 2) the bit incr by 1 when an object is requested at eviction time, the
+// pointer scan from the last scan position (or the least recently used if first
+// time) to the most recently used, if an object is not accessed, it is evicted
+// otherwise, the tracked freq reduces by one and insert the object back
+//
+// other names: Clock / Second Chance
+class MMAtomicClockBuffered {
  public:
   // unique identifier per MMType
   static const int kId;
 
   // forward declaration;
   template <typename T>
-  // using Hook = DListHook<T>;
-  using Hook = AtomicDListHook<T>;
-  using SerializationType = serialization::MMQDLPObject;
-  using SerializationConfigType = serialization::MMQDLPConfig;
-  using SerializationTypeContainer = serialization::MMQDLPCollection;
+  using Hook = AtomicClockListBufferedHook<T>;
+  using SerializationType = serialization::MMAtomicClockBufferedObject;
+  using SerializationConfigType = serialization::MMAtomicClockBufferedConfig;
+  using SerializationTypeContainer = serialization::MMAtomicClockBufferedCollection;
 
-  // This is not applicable for MMQDLP, just for compile of cache allocator
-  enum LruType { Prob, Main, NumTypes };
+  // This is not applicable for MMAtomicClockBuffered, just for compile of cache
+  // allocator
+  enum LruType { NumTypes };
 
-  // Config class for MMQDLP
+  // Config class for MMAtomicClockBuffered
   struct Config {
     // create from serialized config
     explicit Config(SerializationConfigType configState)
-        : Config(*configState.updateOnWrite(), *configState.updateOnRead()) {}
+        : Config(*configState.updateOnWrite(), *configState.updateOnRead(), 1) {
+    }
 
     // @param time        the LRU refresh time in seconds.
     //                    An item will be promoted only once in each lru refresh
     //                    time depite the number of accesses it gets.
     // @param udpateOnW   whether to promote the item on write
     // @param updateOnR   whether to promote the item on read
-    Config(bool updateOnW, bool updateOnR) : Config(updateOnW, updateOnR, 0) {}
+    Config(bool updateOnW, bool updateOnR, int8_t n_bits)
+        : Config(updateOnW, updateOnR, n_bits, false, 0, 0, false) {}
 
     // @param time        the LRU refresh time in seconds.
     //                    An item will be promoted only once in each lru refresh
@@ -94,11 +94,17 @@ class MMQDLP {
     //                                refresh time according to the ratio.
     // useCombinedLockForIterators    Whether to use combined locking for
     //                                withEvictionIterator
-    Config(bool updateOnW, bool updateOnR, uint32_t mmReconfigureInterval)
+    Config(bool updateOnW, bool updateOnR, int8_t n_bits, bool tryLockU,
+           uint8_t ipSpec, uint32_t mmReconfigureInterval,
+           bool useCombinedLockForIterators)
         : updateOnWrite(updateOnW),
           updateOnRead(updateOnR),
+          n_bits(n_bits),
+          lruInsertionPointSpec(ipSpec),
           mmReconfigureIntervalSecs(
-              std::chrono::seconds(mmReconfigureInterval)) {}
+              std::chrono::seconds(mmReconfigureInterval)),
+          tryLockUpdate(tryLockU),
+          useCombinedLockForIterators(useCombinedLockForIterators) {}
 
     Config() = default;
     Config(const Config& rhs) = default;
@@ -109,17 +115,6 @@ class MMQDLP {
 
     template <typename... Args>
     void addExtraConfig(Args...) {}
-
-    // threshold value in seconds to compare with a node's update time to
-    // determine if we need to update the position of the node in the linked
-    // list. By default this is 60s to reduce the contention on the lru lock.
-    // uint32_t defaultLruRefreshTime{60};
-    // uint32_t lruRefreshTime{defaultLruRefreshTime};
-
-    // ratio of LRU refresh time to the tail age. If a refresh time computed
-    // according to this ratio is larger than lruRefreshtime, we will adopt
-    // this one instead of the lruRefreshTime set.
-    // double lruRefreshRatio{0.};
 
     // whether the lru needs to be updated on writes for recordAccess. If
     // false, accessing the cache for writes does not promote the cached item
@@ -147,6 +142,9 @@ class MMQDLP {
 
     // Whether to use combined locking for withEvictionIterator.
     bool useCombinedLockForIterators{false};
+
+    // how many bits is used to track frequency
+    int8_t n_bits{1};
   };
 
   // The container object which can be used to keep track of objects of type
@@ -157,7 +155,7 @@ class MMQDLP {
   template <typename T, Hook<T> T::*HookPtr>
   struct Container {
    private:
-    using FIFOList = QDList<T, HookPtr>;
+    using FRList = AtomicClockListBuffered<T, HookPtr>;
     using Mutex = folly::DistributedMutex;
     using LockHolder = std::unique_lock<Mutex>;
     using PtrCompressor = typename T::PtrCompressor;
@@ -168,8 +166,8 @@ class MMQDLP {
    public:
     Container() = default;
     Container(Config c, PtrCompressor compressor)
-        :  // : compressor_(std::move(compressor)),
-          qdlist_(std::move(compressor)),
+        : compressor_(std::move(compressor)),
+          fifo_(compressor_),
           config_(std::move(c)) {
       nextReconfigureTime_ =
           config_.mmReconfigureIntervalSecs.count() == 0
@@ -177,10 +175,13 @@ class MMQDLP {
               : static_cast<Time>(util::getCurrentTimeSec()) +
                     config_.mmReconfigureIntervalSecs.count();
     }
-    Container(serialization::MMQDLPObject object, PtrCompressor compressor);
+    Container(serialization::MMAtomicClockBufferedObject object,
+              PtrCompressor compressor);
 
     Container(const Container&) = delete;
     Container& operator=(const Container&) = delete;
+
+    using Iterator = typename FRList::Iterator;
 
     // context for iterating the MM container. At any given point of time,
     // there can be only one iterator active since we need to lock the LRU for
@@ -194,64 +195,91 @@ class MMQDLP {
 
       LockedIterator(LockedIterator&&) noexcept = default;
 
-      // moves the LockedIterator forward and backward. Calling ++ once the
-      // LockedIterator has reached the end is undefined.
-      LockedIterator& operator++() {
-        candidate_ = qdlist_->getEvictionCandidate();
-        return *this;
-      }
-      LockedIterator& operator--() { throw std::logic_error("Not implemented"); }
+#define USE_MYCLOCK_ATOMIC
 
-      T* operator->() const noexcept { return candidate_; }
-      T& operator*() const noexcept { return *candidate_; }
+      LockedIterator& operator++() {
+        // no impact for clock
+        candidate_ = fifo_->getEvictionCandidate();
+        return *this;
+      };
+
+      LockedIterator& operator--() {
+        throw std::invalid_argument(
+            "Decrementing eviction iterator is not supported");
+      };
+
+      T* operator->() noexcept { return candidate_; }
+      T& operator*() noexcept { return *candidate_; }
+
+      T* get() noexcept { return candidate_; }
 
       explicit operator bool() const noexcept { return candidate_ != nullptr; }
-
-      T* get() const noexcept { return candidate_; }
-
-      // Invalidates this iterator
-      void reset() noexcept {
-        printf("reset\n"); 
-        // Set index to before first list
-        // index_ = kInvalidIndex;
-        // Point iterator to first list's rend
-        // currIter_ = mlist_.lists_[0]->rend();
-      }
 
       // 1. Invalidate this iterator
       // 2. Unlock
       void destroy() {
-        // Iterator::reset();
+        // iter_.reset();
         // if (l_.owns_lock()) {
         //   l_.unlock();
         // }
       }
 
       // Reset this iterator to the beginning
-      void resetToBegin() noexcept {
-        printf("resetToBegin\n");
+      void resetToBegin() {
+        XLOG(WARN, "resetToBegin\n");
         // if (!l_.owns_lock()) {
         //   l_.lock();
         // }
-        // Iterator::resetToBegin();
+        // iter_.resetToBegin();
       }
 
      private:
-      // private because it's easy to misuse and cause deadlock for MMQDLP
+      // Bit MM_BIT_1 is used to record if the item has been accessed since
+      // being written in cache. Unaccessed items are ignored when determining
+      // projected update time.
+      void markAccessed(T& node) noexcept {
+        node.template setFlag<RefFlags::kMMFlag1>();
+      }
+
+      void unmarkAccessed(T& node) noexcept {
+        node.template unSetFlag<RefFlags::kMMFlag1>();
+      }
+
+      bool isAccessed(const T& node) const noexcept {
+        return node.template isFlagSet<RefFlags::kMMFlag1>();
+      }
+
+      // private because it's easy to misuse and cause deadlock for
+      // MMAtomicClockBuffered
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
       // create an lru iterator with the lock being held.
-      LockedIterator(FIFOList* qdlist) {
-        qdlist_ = qdlist;
-        candidate_ = qdlist_->getEvictionCandidate();
-      }
+      LockedIterator(FRList* fifo)
+          : fifo_(fifo), candidate_(fifo_->getEvictionCandidate()) {
+        // T* prev = fifo_->getPrev(*candidate_);
+        // T* next = fifo_->getNext(*candidate_);
+        // if (prev != nullptr) {
+        //   printf("prev: %p\n", prev);
+        // }
+        // if (next != nullptr) {
+        //   printf("next: %p\n", next);
+        // }
+        XDCHECK_EQ(fifo_->getPrev(*candidate_), nullptr);
+        XDCHECK_EQ(fifo_->getNext(*candidate_), nullptr);
+      };
 
-      FIFOList* qdlist_;
-
-      T* candidate_;
+      // l_(std::move(l))
 
       // only the container can create iterators
       friend Container<T, HookPtr>;
+
+      FRList* fifo_;
+
+      // Iterator iter_;
+      T* candidate_;
+
+      // lock protecting the validity of the iterator
+      // LockHolder l_;
     };
 
     // records the information that the node was accessed. This could bump up
@@ -291,6 +319,8 @@ class MMQDLP {
     // iterator will be advanced to the next node after removing the node
     //
     // @param it    Iterator that will be removed
+    void remove(Iterator& it) noexcept;
+
     void remove(LockedIterator& it) noexcept;
 
     // replaces one node with another, at the same position
@@ -310,8 +340,8 @@ class MMQDLP {
 
     // Execute provided function under container lock. Function gets
     // iterator passed as parameter.
-    // template <typename F>
-    // void withEvictionIterator(F&& f);
+    template <typename F>
+    void withEvictionIterator(F&& f);
 
     // get copy of current config
     Config getConfig() const;
@@ -327,7 +357,7 @@ class MMQDLP {
 
     // returns the number of elements in the container
     size_t size() const noexcept {
-      return lruMutex_->lock_combine([this]() { return qdlist_.size(); });
+      return lruMutex_->lock_combine([this]() { return fifo_.size(); });
     }
 
     // Returns the eviction age stats. See CacheStats.h for details
@@ -339,18 +369,13 @@ class MMQDLP {
     // present. Any modification of this object afterwards will result in an
     // invalid, inconsistent state for the serialized data.
     //
-    serialization::MMQDLPObject saveState() const noexcept;
+    serialization::MMAtomicClockBufferedObject saveState() const noexcept;
 
     // return the stats for this container.
     MMContainerStat getStats() const noexcept;
 
-    LruType getLruType(const T& node) noexcept {
-      if (isProbationary(node)) {
-        return LruType::Prob;
-      } else {
-        XDCHECK(isMain(node));
-        return LruType::Main;
-      }
+    static LruType getLruType(const T& /* node */) noexcept {
+      return LruType{};
     }
 
    private:
@@ -365,36 +390,33 @@ class MMQDLP {
       (node.*HookPtr).setUpdateTime(time);
     }
 
-    // remove node from lru and adjust insertion points
-    //
-    // @param node          node to remove
-    // @param doRebalance     whether to do rebalance in this remove
-    void removeLocked(T& node) noexcept;
+    // This function is invoked by remove or record access prior to
+    // removing the node (or moving the node to head) to ensure that
+    // the node being moved is not the insertion point and if it is
+    // adjust it accordingly.
+    void ensureNotInsertionPoint(T& node) noexcept;
 
-    // Bit MM_BIT_0 is used to record if the item is hot.
-    void markProbationary(T& node) noexcept {
+    // update the lru insertion point after doing an insert or removal.
+    // We need to ensure the insertionPoint_ is set to the correct node
+    // to maintain the tailSize_, for the next insertion.
+    void updateLruInsertionPoint() noexcept;
+
+    // remove node from lru and adjust insertion points
+    // @param node          node to remove
+    void removeLocked(T& node);
+
+    // Bit MM_BIT_0 is used to record if the item is in tail. This
+    // is used to implement LRU insertion points
+    void markTail(T& node) noexcept {
       node.template setFlag<RefFlags::kMMFlag0>();
     }
 
-    void unmarkProbationary(T& node) noexcept {
+    void unmarkTail(T& node) noexcept {
       node.template unSetFlag<RefFlags::kMMFlag0>();
     }
 
-    bool isProbationary(const T& node) const noexcept {
+    bool isTail(T& node) const noexcept {
       return node.template isFlagSet<RefFlags::kMMFlag0>();
-    }
-
-    // Bit MM_BIT_2 is used to record if the item is cold.
-    void markMain(T& node) noexcept {
-      node.template setFlag<RefFlags::kMMFlag2>();
-    }
-
-    void unmarkMain(T& node) noexcept {
-      node.template unSetFlag<RefFlags::kMMFlag2>();
-    }
-
-    bool isMain(const T& node) const noexcept {
-      return node.template isFlagSet<RefFlags::kMMFlag2>();
     }
 
     // Bit MM_BIT_1 is used to record if the item has been accessed since
@@ -417,21 +439,35 @@ class MMQDLP {
     // time.
     mutable folly::cacheline_aligned<Mutex> lruMutex_;
 
+    const PtrCompressor compressor_{};
+
     // the fifo
-    FIFOList qdlist_{};
+    FRList fifo_{};
+
+    // insertion point
+    T* insertionPoint_{nullptr};
+
+    // size of tail after insertion point
+    size_t tailSize_{0};
 
     // The next time to reconfigure the container.
     std::atomic<Time> nextReconfigureTime_{};
 
+    // How often to promote an item in the eviction queue.
+    // std::atomic<uint32_t> lruRefreshTime_{};
+
     // Config for this lru.
-    // Write access to the MMQDLP Config is serialized.
+    // Write access to the MMAtomicClockBuffered Config is serialized.
     // Reads may be racy.
     Config config_{};
 
-    FRIEND_TEST(MMQDLPTest, Reconfigure);
+    // // Max lruFreshTime.
+    // static constexpr uint32_t kLruRefreshTimeCap{900};
+
+    FRIEND_TEST(MMAtomicClockBufferedTest, Reconfigure);
   };
 };
 }  // namespace cachelib
 }  // namespace facebook
 
-#include "cachelib/allocator/MMQDLP-inl.h"
+#include "cachelib/allocator/MMAtomicClockBuffered-inl.h"

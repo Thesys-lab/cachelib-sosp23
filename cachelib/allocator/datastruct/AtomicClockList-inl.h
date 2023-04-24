@@ -52,7 +52,6 @@ void AtomicClockList<T, HookPtr>::linkAtHead(T& node) noexcept {
   size_++;
 }
 
-
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::unlink(const T& node) noexcept {
   if (mtx_->try_lock()) {
@@ -70,8 +69,8 @@ void AtomicClockList<T, HookPtr>::unlink(const T& node) noexcept {
   }
   if (&node == tail_) {
     if (prev == nullptr || tail_.load() == nullptr) {
-      printf("node %p prev %p next %p tail_ %p head_ %p size %lu\n", &node, prev,
-             next, tail_.load(), head_.load(), size_.load());
+      printf("node %p prev %p next %p tail_ %p head_ %p size %lu\n", &node,
+             prev, next, tail_.load(), head_.load(), size_.load());
       abort();
     }
     tail_ = prev;
@@ -106,7 +105,6 @@ void AtomicClockList<T, HookPtr>::remove(T& node) noexcept {
 
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 void AtomicClockList<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
-  printf("replace\n");
   LockHolder l(*mtx_);
 
   // Update head and tail links if needed
@@ -148,55 +146,23 @@ void AtomicClockList<T, HookPtr>::moveToHead(T& node) noexcept {
   linkAtHead(node);
 }
 
-#ifdef USE_MPMC_QUEUE
+// #define USE_MYCLOCK_ATOMIC
 template <typename T, AtomicClockListHook<T> T::*HookPtr>
 T* AtomicClockList<T, HookPtr>::getEvictionCandidate() noexcept {
-  // LockHolder l(*mtx_);
-  if (evictCandidateQueue_.sizeGuess() < nMaxEvictionCandidates_ / 4) {
-    if (size_.load() == 0) {
-      return NULL;
-    }
+  if (size_.load() == 0)
+    return nullptr;
 
-    prepareEvictionCandidates();
-  }
 
+  LockHolder l(*mtx_);
+
+  int n_iters = 0;
   T* ret = nullptr;
-  int nTries = 0;
-  while (!evictCandidateQueue_.read(ret)) {
-    if ((nTries++) % 100 == 0) {
-      prepareEvictionCandidates();
-    } else {
-      if (nTries % 100000 == 0) {
-        printf("thread %ld has %d attempts\n", pthread_self(), nTries);
-      }
-    }
-  }
-
-  return ret;
-}
-
-template <typename T, AtomicClockListHook<T> T::*HookPtr>
-void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
-  LockHolder l(*mtx_);
-  if (evictCandidateQueue_.sizeGuess() > nMaxEvictionCandidates_ / 4 * 3) {
-    return;
-  }
-  int nCandidate = nCandidateToPrepare();
-  int n_iters = 0;
 
   T* curr = curr_.load();
-  T* headWhenStart = head_.load();
   T* next;
-  T* firstRetainedNode = curr;
-  while (nCandidate > 0) {
-#ifdef USE_MYCLOCK_ATOMIC
-    if (curr == headWhenStart)
-      // we turn around when we reach headWhenStart to avoid
-      // delinking the head and conflicting with the insert operation
-#else
-    if (curr == head_.load()) 
-#endif
-    {
+
+  while (ret == nullptr) {
+    if (curr == head_.load()) {
       curr = tail_.load();
       if (n_iters++ > 2) {
         printf("n_iters = %d\n", n_iters);
@@ -214,107 +180,18 @@ void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
       curr = next;
 #endif
     } else {
-      nCandidate--;
       next = getPrev(*curr);
-      if (evictCandidateQueue_.write(curr)) {
-        unlink(*curr);
-        setNext(*curr, nullptr);
-        setPrev(*curr, nullptr);
-      }
-      curr = next;
-    }
-  }
-  curr_.store(curr);
-}
-#else
-template <typename T, AtomicClockListHook<T> T::*HookPtr>
-T* AtomicClockList<T, HookPtr>::getEvictionCandidate() noexcept {
-  // TODO it may happen that the prepare happen while some other threads are
-  // still using the old eviction candidates. This is not a correctness issue
-  // we can use two buffers and atomic swap to avoid this
-  // or we can have a per-thread buffer
-  // LockHolder l(*mtx_);
-  size_t idx = bufIdx_.fetch_add(1);
-  while (idx >= nEvictionCandidates_.load()) {
-    if (size_.load() == 0) {
-      return NULL;
-    }
-
-    prepareEvictionCandidates();
-    idx = bufIdx_.fetch_add(1);
-  }
-  T* ret = evictCandidateBuf_[idx];
-  evictCandidateBuf_[idx].store(nullptr);
-  return ret;
-}
-
-template <typename T, AtomicClockListHook<T> T::*HookPtr>
-void AtomicClockList<T, HookPtr>::prepareEvictionCandidates() noexcept {
-  // TODO: we can release the candidate early
-  LockHolder l(*mtx_);
-  if (bufIdx_.load() < nEvictionCandidates_.load()) {
-    return;
-  }
-
-  size_t idx = 0;
-  int nCandidate = nCandidateToPrepare();
-  int n_iters = 0;
-
-  T* curr = curr_.load();
-  T* headWhenStart = head_.load();
-  T* next;
-  // the nodes between first and last retaiend ndoes (curr)
-  // are moved to eviction candidate buffer
-  T* firstRetainedNode = curr;
-  while (idx < nCandidate) {
-#ifdef USE_MYCLOCK_ATOMIC
-    if (curr == headWhenStart || curr == nullptr) 
-      // we turn around when we reach headWhenStart to avoid
-      // delinking the head and conflicting with the insert operation
-      // the nullptr check is because of a bug that appears rarely
-#else
-    if (curr == head_.load()) 
-#endif
-    {
-      curr = tail_.load();
-      if (n_iters++ > 2) {
-        printf("n_iters = %d\n", n_iters);
-        abort();
-      }
-    }
-    if (isAccessed(*curr)) {
-      unmarkAccessed(*curr);
-#ifdef USE_MYCLOCK_ATOMIC
-      curr = getPrev(*curr);
-#else
-      next = getPrev(*curr);
-      // move the node to the head of the list
-      moveToHead(*curr);
-      curr = next;
-#endif
-    } else {
-      while (evictCandidateBuf_[idx] != nullptr) {
-        // spin and wait for the evict candidate to be fetched
-        ;
-      }
-      evictCandidateBuf_[idx++] = curr;
-      next = getPrev(*curr);
+      ret = curr;
       unlink(*curr);
       setNext(*curr, nullptr);
       setPrev(*curr, nullptr);
       curr = next;
     }
-    if (curr == nullptr) {
-      // this can happen if head_ is updated to a newly inserted node,
-      // but the old head has not pointed to the new head yet.
-      curr = tail_.load();
-    }
   }
   curr_.store(curr);
-  nEvictionCandidates_.store(nCandidate);
-  bufIdx_.store(0);
+
+  return ret;
 }
-#endif
 
 /* Iterator Implementation */
 template <typename T, AtomicClockListHook<T> T::*HookPtr>

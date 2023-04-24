@@ -53,11 +53,17 @@ struct AtomicClockListObject {
   3: required i64 size,
 }
 
+struct AtomicClockListBufferedObject {
+  1: required i64 compressedHead,
+  2: required i64 compressedTail,
+  3: required i64 size,
+}
+
 struct MultiDListObject {
   1: required list<DListObject> lists;
 }
 
-struct QDListObject {
+struct S3FIFOListObject {
   1: required AtomicDListObject pfifo;
   2: required AtomicDListObject mfifo;
 }

@@ -19,7 +19,7 @@ namespace cachelib {
 
 // used for single thread
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
+T* S3FIFOList<T, HookPtr>::getEvictionCandidate() noexcept {
   size_t listSize = pfifo_->size() + mfifo_->size();
   if (listSize == 0) {
     return nullptr;
@@ -67,7 +67,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate() noexcept {
 }
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
+T* S3FIFOList<T, HookPtr>::getEvictionCandidate0() noexcept {
   size_t listSize = pfifo_->size() + mfifo_->size();
   if (listSize == 0 && evictCandidateQueue_.size() == 0) {
     return nullptr;
@@ -82,7 +82,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
 // #define ENABLE_SCALABILITY
 #ifdef ENABLE_SCALABILITY
       if (evThread_.get() == nullptr) {
-        evThread_ = std::make_unique<std::thread>(&QDList::threadFunc, this);
+        evThread_ = std::make_unique<std::thread>(&S3FIFOList::threadFunc, this);
       }
 #endif
     }
@@ -104,7 +104,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
 }
 
 // template <typename T, AtomicDListHook<T> T::*HookPtr>
-// void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
+// void S3FIFOList<T, HookPtr>::prepareEvictionCandidates() noexcept {
 //   T* curr = nullptr;
 //   T* mfifo_head = nullptr;
 //   T* mfifo_tail = nullptr;
@@ -180,7 +180,7 @@ T* QDList<T, HookPtr>::getEvictionCandidate0() noexcept {
 // }
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
+void S3FIFOList<T, HookPtr>::prepareEvictionCandidates() noexcept {
   if (pfifo_->size() > (double)(pfifo_->size() + mfifo_->size()) * pRatio_) {
     for (int i = 0; i < nCandidateToPrepare(); i++) {
       // evict from probationary FIFO
@@ -194,7 +194,7 @@ void QDList<T, HookPtr>::prepareEvictionCandidates() noexcept {
 }
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-void QDList<T, HookPtr>::evictPFifo() noexcept {
+void S3FIFOList<T, HookPtr>::evictPFifo() noexcept {
   T* curr = nullptr;
 
   // evict from probationary FIFO
@@ -216,7 +216,7 @@ void QDList<T, HookPtr>::evictPFifo() noexcept {
 }
 
 // template <typename T, AtomicDListHook<T> T::*HookPtr>
-// void QDList<T, HookPtr>::evictPFifo() noexcept {
+// void S3FIFOList<T, HookPtr>::evictPFifo() noexcept {
 //   T* curr = nullptr;
 
 //   // evict from probationary FIFO
@@ -243,7 +243,7 @@ void QDList<T, HookPtr>::evictPFifo() noexcept {
 // }
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
-void QDList<T, HookPtr>::evictMFifo() noexcept {
+void S3FIFOList<T, HookPtr>::evictMFifo() noexcept {
   T* curr = nullptr;
   curr = mfifo_->removeTail();
   if (curr != nullptr) {

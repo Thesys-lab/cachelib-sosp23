@@ -18,8 +18,8 @@ namespace facebook {
 namespace cachelib {
 
 /* Container Interface Implementation */
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-MMQDLP::Container<T, HookPtr>::Container(serialization::MMQDLPObject object,
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+MMS3FIFO::Container<T, HookPtr>::Container(serialization::MMS3FIFOObject object,
                                          PtrCompressor compressor)
     : qdlist_(*object.qdlist(), compressor), config_(*object.config()) {
   nextReconfigureTime_ = config_.mmReconfigureIntervalSecs.count() == 0
@@ -28,8 +28,8 @@ MMQDLP::Container<T, HookPtr>::Container(serialization::MMQDLPObject object,
                                    config_.mmReconfigureIntervalSecs.count();
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-bool MMQDLP::Container<T, HookPtr>::recordAccess(T& node,
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+bool MMS3FIFO::Container<T, HookPtr>::recordAccess(T& node,
                                                  AccessMode mode) noexcept {
   if ((mode == AccessMode::kWrite && !config_.updateOnWrite) ||
       (mode == AccessMode::kRead && !config_.updateOnRead)) {
@@ -72,17 +72,17 @@ bool MMQDLP::Container<T, HookPtr>::recordAccess(T& node,
   return false;
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-cachelib::EvictionAgeStat MMQDLP::Container<T, HookPtr>::getEvictionAgeStat(
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+cachelib::EvictionAgeStat MMS3FIFO::Container<T, HookPtr>::getEvictionAgeStat(
     uint64_t projectedLength) const noexcept {
   return lruMutex_->lock_combine([this, projectedLength]() {
     return getEvictionAgeStatLocked(projectedLength);
   });
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
 cachelib::EvictionAgeStat
-MMQDLP::Container<T, HookPtr>::getEvictionAgeStatLocked(
+MMS3FIFO::Container<T, HookPtr>::getEvictionAgeStatLocked(
     uint64_t projectedLength) const noexcept {
   EvictionAgeStat stat{};
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
@@ -100,8 +100,8 @@ MMQDLP::Container<T, HookPtr>::getEvictionAgeStatLocked(
   return stat;
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-void MMQDLP::Container<T, HookPtr>::setConfig(const Config& newConfig) {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+void MMS3FIFO::Container<T, HookPtr>::setConfig(const Config& newConfig) {
   lruMutex_->lock_combine([this, newConfig]() {
     config_ = newConfig;
     nextReconfigureTime_ = config_.mmReconfigureIntervalSecs.count() == 0
@@ -111,13 +111,13 @@ void MMQDLP::Container<T, HookPtr>::setConfig(const Config& newConfig) {
   });
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-typename MMQDLP::Config MMQDLP::Container<T, HookPtr>::getConfig() const {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+typename MMS3FIFO::Config MMS3FIFO::Container<T, HookPtr>::getConfig() const {
   return lruMutex_->lock_combine([this]() { return config_; });
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-bool MMQDLP::Container<T, HookPtr>::add(T& node) noexcept {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+bool MMS3FIFO::Container<T, HookPtr>::add(T& node) noexcept {
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
   // return lruMutex_->lock_combine([this, &node, currTime]() {
@@ -137,16 +137,16 @@ bool MMQDLP::Container<T, HookPtr>::add(T& node) noexcept {
   // });
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-typename MMQDLP::Container<T, HookPtr>::LockedIterator
-MMQDLP::Container<T, HookPtr>::getEvictionIterator() noexcept {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+typename MMS3FIFO::Container<T, HookPtr>::LockedIterator
+MMS3FIFO::Container<T, HookPtr>::getEvictionIterator() noexcept {
   // LockHolder l(*lruMutex_, std::defer_lock);
   return LockedIterator{&qdlist_};
 }
 
-// template <typename T, MMQDLP::Hook<T> T::*HookPtr>
+// template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
 // template <typename F>
-// void MMQDLP::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
+// void MMS3FIFO::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
 //   if (config_.useCombinedLockForIterators) {
 //     lruMutex_->lock_combine([this, &fun]() { fun(Iterator{qdlist_.rbegin()});
 //     });
@@ -156,8 +156,8 @@ MMQDLP::Container<T, HookPtr>::getEvictionIterator() noexcept {
 //   }
 // }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-void MMQDLP::Container<T, HookPtr>::removeLocked(T& node) noexcept {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+void MMS3FIFO::Container<T, HookPtr>::removeLocked(T& node) noexcept {
   LruType type = getLruType(node);
 
   switch (type) {
@@ -174,8 +174,8 @@ void MMQDLP::Container<T, HookPtr>::removeLocked(T& node) noexcept {
   return;
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-bool MMQDLP::Container<T, HookPtr>::remove(T& node) noexcept {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+bool MMS3FIFO::Container<T, HookPtr>::remove(T& node) noexcept {
   return lruMutex_->lock_combine([this, &node]() {
     if (!node.isInMMContainer()) {
       return false;
@@ -185,8 +185,8 @@ bool MMQDLP::Container<T, HookPtr>::remove(T& node) noexcept {
   });
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-void MMQDLP::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+void MMS3FIFO::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {
   T& node = *it;
   XDCHECK(node.isInMMContainer());
   // ++it;
@@ -194,8 +194,8 @@ void MMQDLP::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {
   node.unmarkInMMContainer();
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-bool MMQDLP::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+bool MMS3FIFO::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   return lruMutex_->lock_combine([this, &oldNode, &newNode]() {
     if (!oldNode.isInMMContainer() || newNode.isInMMContainer()) {
       return false;
@@ -229,21 +229,21 @@ bool MMQDLP::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   });
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-serialization::MMQDLPObject MMQDLP::Container<T, HookPtr>::saveState()
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+serialization::MMS3FIFOObject MMS3FIFO::Container<T, HookPtr>::saveState()
     const noexcept {
-  serialization::MMQDLPConfig configObject;
+  serialization::MMS3FIFOConfig configObject;
   *configObject.updateOnWrite() = config_.updateOnWrite;
   *configObject.updateOnRead() = config_.updateOnRead;
 
-  serialization::MMQDLPObject object;
+  serialization::MMS3FIFOObject object;
   *object.config() = configObject;
   *object.qdlist() = qdlist_.saveState();
   return object;
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-MMContainerStat MMQDLP::Container<T, HookPtr>::getStats() const noexcept {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+MMContainerStat MMS3FIFO::Container<T, HookPtr>::getStats() const noexcept {
   auto stat = lruMutex_->lock_combine([this]() {
     // we return by array here because DistributedMutex is fastest when the
     // output data fits within 48 bytes.  And the array is exactly 48 bytes, so
@@ -258,8 +258,8 @@ MMContainerStat MMQDLP::Container<T, HookPtr>::getStats() const noexcept {
           0, 0 /* refresh time */, 0, 0, 0, 0};
 }
 
-template <typename T, MMQDLP::Hook<T> T::*HookPtr>
-void MMQDLP::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
+template <typename T, MMS3FIFO::Hook<T> T::*HookPtr>
+void MMS3FIFO::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
   if (currTime < nextReconfigureTime_) {
     return;
   }

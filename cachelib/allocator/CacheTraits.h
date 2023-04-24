@@ -24,8 +24,9 @@
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
 #include "cachelib/allocator/MMAtomicClock.h"
+#include "cachelib/allocator/MMAtomicClockBuffered.h"
 #endif
-#include "cachelib/allocator/MMQDLP.h"
+#include "cachelib/allocator/MMS3FIFO.h"
 #include "cachelib/common/Mutex.h"
 
 namespace facebook {
@@ -74,20 +75,20 @@ struct AtomicClockCacheTrait {
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
 };
+
+struct AtomicClockBufferedCacheTrait {
+  using MMType = MMAtomicClockBuffered;
+  using AccessType = ChainedHashTable;
+  using AccessTypeLocks = SharedMutexBuckets;
+};
 #endif
 
-struct QDLPCacheTrait {
-  using MMType = MMQDLP;
+struct S3FIFOCacheTrait {
+  using MMType = MMS3FIFO;
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
   // using AccessTypeLocks = SpinBuckets;
 };
-
-// struct QDLPCacheTraitV2 {
-//   using MMType = MMQDLP;
-//   using AccessType = BucketHashTable;
-//   using AccessTypeLocks = SharedMutexBuckets;
-// };
 
 } // namespace cachelib
 } // namespace facebook

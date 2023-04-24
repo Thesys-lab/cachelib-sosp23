@@ -21,7 +21,8 @@
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
 #include "cachelib/allocator/MMAtomicClock.h"
-#include "cachelib/allocator/MMQDLP.h"
+#include "cachelib/allocator/MMAtomicClockBuffered.h"
+#include "cachelib/allocator/MMS3FIFO.h"
 
 namespace facebook {
 namespace cachelib {
@@ -33,10 +34,10 @@ const int MMTinyLFU::kId = 3;
 
 const int MMClock::kId = 4;
 const int MMAtomicClock::kId = 6;
-const int MMQDLP::kId = 5;
+const int MMAtomicClockBuffered::kId = 7;
+const int MMS3FIFO::kId = 5;
 
 // AccessType
 const int ChainedHashTable::kId = 1;
-// const int BucketHashTable::kId = 2;
 } // namespace cachelib
 } // namespace facebook

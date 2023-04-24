@@ -2158,9 +2158,10 @@ extern template class CacheAllocator<Lru2QCacheTrait>;
 extern template class CacheAllocator<TinyLFUCacheTrait>;
 
 extern template class CacheAllocator<ClockCacheTrait>;
+extern template class CacheAllocator<AtomicClockBufferedCacheTrait>;
 extern template class CacheAllocator<AtomicClockCacheTrait>;
 #endif
-extern template class CacheAllocator<QDLPCacheTrait>;
+extern template class CacheAllocator<S3FIFOCacheTrait>;
 
 #ifdef FULL_COMPILE
 // CacheAllocator with an LRU eviction policy
@@ -2187,8 +2188,9 @@ using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
 
 using ClockAllocator = CacheAllocator<ClockCacheTrait>;
 using AtomicClockAllocator = CacheAllocator<AtomicClockCacheTrait>;
+using AtomicClockBufferedAllocator = CacheAllocator<AtomicClockBufferedCacheTrait>;
 #endif
 
-using QDLPAllocator = CacheAllocator<QDLPCacheTrait>;
+using S3FIFOAllocator = CacheAllocator<S3FIFOCacheTrait>;
 } // namespace cachelib
 } // namespace facebook

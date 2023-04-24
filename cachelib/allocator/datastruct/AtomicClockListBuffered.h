@@ -39,7 +39,7 @@ namespace cachelib {
 // previous, next information with the last time the item was updated in the
 // LRU.
 template <typename T>
-struct CACHELIB_PACKED_ATTR AtomicClockListHook {
+struct CACHELIB_PACKED_ATTR AtomicClockListBufferedHook {
   using Time = uint32_t;
   using CompressedPtr = typename T::CompressedPtr;
   using PtrCompressor = typename T::PtrCompressor;
@@ -89,28 +89,28 @@ struct CACHELIB_PACKED_ATTR AtomicClockListHook {
 
 // uses a double linked list to implement an LRU. T must be have a public
 // member of type Hook and HookPtr must point to that.
-template <typename T, AtomicClockListHook<T> T::*HookPtr>
-class AtomicClockList {
+template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
+class AtomicClockListBuffered {
  public:
   using Mutex = folly::DistributedMutex;
   using LockHolder = std::unique_lock<Mutex>;
   using RefFlags = typename T::Flags;
   using CompressedPtr = typename T::CompressedPtr;
   using PtrCompressor = typename T::PtrCompressor;
-  using AtomicClockListObject = serialization::AtomicClockListObject;
+  using AtomicClockListBufferedObject = serialization::AtomicClockListBufferedObject;
 
-  AtomicClockList() = default;
-  AtomicClockList(const AtomicClockList&) = delete;
-  AtomicClockList& operator=(const AtomicClockList&) = delete;
+  AtomicClockListBuffered() = default;
+  AtomicClockListBuffered(const AtomicClockListBuffered&) = delete;
+  AtomicClockListBuffered& operator=(const AtomicClockListBuffered&) = delete;
 
-  explicit AtomicClockList(PtrCompressor compressor) noexcept
+  explicit AtomicClockListBuffered(PtrCompressor compressor) noexcept
       : compressor_(std::move(compressor)) {}
 
-  // Restore AtomicClockList from saved state.
+  // Restore AtomicClockListBuffered from saved state.
   //
-  // @param object              Save AtomicClockList object
+  // @param object              Save AtomicClockListBuffered object
   // @param compressor          PtrCompressor object
-  AtomicClockList(const AtomicClockListObject& object, PtrCompressor compressor)
+  AtomicClockListBuffered(const AtomicClockListBufferedObject& object, PtrCompressor compressor)
       : compressor_(std::move(compressor)),
         head_(compressor_.unCompress(CompressedPtr{*object.compressedHead()})),
         tail_(compressor_.unCompress(CompressedPtr{*object.compressedTail()})),
@@ -119,8 +119,8 @@ class AtomicClockList {
   /**
    * Exports the current state as a thrift object for later restoration.
    */
-  AtomicClockListObject saveState() const {
-    AtomicClockListObject state;
+  AtomicClockListBufferedObject saveState() const {
+    AtomicClockListBufferedObject state;
     *state.compressedHead() = compressor_.compress(head_).saveState();
     *state.compressedTail() = compressor_.compress(tail_).saveState();
     *state.size() = size_;
@@ -188,8 +188,8 @@ class AtomicClockList {
     enum class Direction { FROM_HEAD, FROM_TAIL };
 
     Iterator(T* p, Direction d,
-             const AtomicClockList<T, HookPtr>& AtomicClockList) noexcept
-        : curr_(p), dir_(d), AtomicClockList_(&AtomicClockList) {}
+             const AtomicClockListBuffered<T, HookPtr>& AtomicClockListBuffered) noexcept
+        : curr_(p), dir_(d), AtomicClockListBuffered_(&AtomicClockListBuffered) {}
     virtual ~Iterator() = default;
 
     // copyable and movable
@@ -207,7 +207,7 @@ class AtomicClockList {
     T& operator*() const noexcept { return *curr_; }
 
     bool operator==(const Iterator& other) const noexcept {
-      return AtomicClockList_ == other.AtomicClockList_ &&
+      return AtomicClockListBuffered_ == other.AtomicClockListBuffered_ &&
              curr_ == other.curr_ && dir_ == other.dir_;
     }
 
@@ -216,7 +216,7 @@ class AtomicClockList {
     }
 
     explicit operator bool() const noexcept {
-      return curr_ != nullptr && AtomicClockList_ != nullptr;
+      return curr_ != nullptr && AtomicClockListBuffered_ != nullptr;
     }
 
     T* get() const noexcept { return curr_; }
@@ -226,8 +226,8 @@ class AtomicClockList {
 
     // Reset the iterator back to the beginning
     void resetToBegin() noexcept {
-      curr_ = dir_ == Direction::FROM_HEAD ? AtomicClockList_->head_
-                                           : AtomicClockList_->tail_;
+      curr_ = dir_ == Direction::FROM_HEAD ? AtomicClockListBuffered_->head_
+                                           : AtomicClockListBuffered_->tail_;
     }
 
    protected:
@@ -238,7 +238,7 @@ class AtomicClockList {
     T* curr_{nullptr};
     // the direction we are iterating.
     Direction dir_{Direction::FROM_HEAD};
-    const AtomicClockList<T, HookPtr>* AtomicClockList_{nullptr};
+    const AtomicClockListBuffered<T, HookPtr>* AtomicClockListBuffered_{nullptr};
   };
 
   // provides an iterator starting from the head of the linked list.
@@ -289,8 +289,39 @@ class AtomicClockList {
 
   // size of the list
   std::atomic<size_t> size_{0};
+
+// #define USE_MYCLOCK_ATOMIC
+// #define USE_NO_BUFFER
+#define USE_MPMC_QUEUE
+
+#ifdef USE_EVICTION_BUFFER
+  std::atomic<size_t> nEvictionCandidates_{0};
+
+  std::atomic<T*> evictCandidateBuf_[nMaxEvictionCandidates_]{nullptr};
+
+  std::atomic<size_t> bufIdx_{nMaxEvictionCandidates_};
+
+  size_t nCandidateToPrepare() {
+    size_t n = 0;
+    n = std::min(size_.load() / 4, nMaxEvictionCandidates_);
+    n = std::max(n, 1ul);
+    return n;
+  }
+#endif
+#ifdef USE_MPMC_QUEUE
+  folly::MPMCQueue<T*> evictCandidateQueue_{nMaxEvictionCandidates_};
+
+  /* different from previous one - we load 1/4 of the nMax */
+  size_t nCandidateToPrepare() {
+    size_t n = 0;
+    n = std::min(size_.load(), nMaxEvictionCandidates_);
+    n = std::max(n / 4, 1ul);
+    return n;
+  }
+
+#endif
 };
 }  // namespace cachelib
 }  // namespace facebook
 
-#include "cachelib/allocator/datastruct/AtomicClockList-inl.h"
+#include "cachelib/allocator/datastruct/AtomicClockListBuffered-inl.h"
