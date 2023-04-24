@@ -2158,8 +2158,8 @@ extern template class CacheAllocator<Lru2QCacheTrait>;
 extern template class CacheAllocator<TinyLFUCacheTrait>;
 
 extern template class CacheAllocator<ClockCacheTrait>;
-extern template class CacheAllocator<AtomicClockBufferedCacheTrait>;
-extern template class CacheAllocator<AtomicClockCacheTrait>;
+extern template class CacheAllocator<SieveBufferedCacheTrait>;
+extern template class CacheAllocator<SieveCacheTrait>;
 #endif
 extern template class CacheAllocator<S3FIFOCacheTrait>;
 
@@ -2187,8 +2187,8 @@ using Lru2QAllocator = CacheAllocator<Lru2QCacheTrait>;
 using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
 
 using ClockAllocator = CacheAllocator<ClockCacheTrait>;
-using AtomicClockAllocator = CacheAllocator<AtomicClockCacheTrait>;
-using AtomicClockBufferedAllocator = CacheAllocator<AtomicClockBufferedCacheTrait>;
+using SieveAllocator = CacheAllocator<SieveCacheTrait>;
+using SieveBufferedAllocator = CacheAllocator<SieveBufferedCacheTrait>;
 #endif
 
 using S3FIFOAllocator = CacheAllocator<S3FIFOCacheTrait>;

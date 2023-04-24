@@ -39,7 +39,7 @@ namespace cachelib {
 // previous, next information with the last time the item was updated in the
 // LRU.
 template <typename T>
-struct CACHELIB_PACKED_ATTR AtomicClockListBufferedHook {
+struct CACHELIB_PACKED_ATTR SieveListHook {
   using Time = uint32_t;
   using CompressedPtr = typename T::CompressedPtr;
   using PtrCompressor = typename T::PtrCompressor;
@@ -89,28 +89,28 @@ struct CACHELIB_PACKED_ATTR AtomicClockListBufferedHook {
 
 // uses a double linked list to implement an LRU. T must be have a public
 // member of type Hook and HookPtr must point to that.
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-class AtomicClockListBuffered {
+template <typename T, SieveListHook<T> T::*HookPtr>
+class SieveList {
  public:
   using Mutex = folly::DistributedMutex;
   using LockHolder = std::unique_lock<Mutex>;
   using RefFlags = typename T::Flags;
   using CompressedPtr = typename T::CompressedPtr;
   using PtrCompressor = typename T::PtrCompressor;
-  using AtomicClockListBufferedObject = serialization::AtomicClockListBufferedObject;
+  using SieveListObject = serialization::SieveListObject;
 
-  AtomicClockListBuffered() = default;
-  AtomicClockListBuffered(const AtomicClockListBuffered&) = delete;
-  AtomicClockListBuffered& operator=(const AtomicClockListBuffered&) = delete;
+  SieveList() = default;
+  SieveList(const SieveList&) = delete;
+  SieveList& operator=(const SieveList&) = delete;
 
-  explicit AtomicClockListBuffered(PtrCompressor compressor) noexcept
+  explicit SieveList(PtrCompressor compressor) noexcept
       : compressor_(std::move(compressor)) {}
 
-  // Restore AtomicClockListBuffered from saved state.
+  // Restore SieveList from saved state.
   //
-  // @param object              Save AtomicClockListBuffered object
+  // @param object              Save SieveList object
   // @param compressor          PtrCompressor object
-  AtomicClockListBuffered(const AtomicClockListBufferedObject& object, PtrCompressor compressor)
+  SieveList(const SieveListObject& object, PtrCompressor compressor)
       : compressor_(std::move(compressor)),
         head_(compressor_.unCompress(CompressedPtr{*object.compressedHead()})),
         tail_(compressor_.unCompress(CompressedPtr{*object.compressedTail()})),
@@ -119,8 +119,8 @@ class AtomicClockListBuffered {
   /**
    * Exports the current state as a thrift object for later restoration.
    */
-  AtomicClockListBufferedObject saveState() const {
-    AtomicClockListBufferedObject state;
+  SieveListObject saveState() const {
+    SieveListObject state;
     *state.compressedHead() = compressor_.compress(head_).saveState();
     *state.compressedTail() = compressor_.compress(tail_).saveState();
     *state.size() = size_;
@@ -188,8 +188,8 @@ class AtomicClockListBuffered {
     enum class Direction { FROM_HEAD, FROM_TAIL };
 
     Iterator(T* p, Direction d,
-             const AtomicClockListBuffered<T, HookPtr>& AtomicClockListBuffered) noexcept
-        : curr_(p), dir_(d), AtomicClockListBuffered_(&AtomicClockListBuffered) {}
+             const SieveList<T, HookPtr>& SieveList) noexcept
+        : curr_(p), dir_(d), SieveList_(&SieveList) {}
     virtual ~Iterator() = default;
 
     // copyable and movable
@@ -207,7 +207,7 @@ class AtomicClockListBuffered {
     T& operator*() const noexcept { return *curr_; }
 
     bool operator==(const Iterator& other) const noexcept {
-      return AtomicClockListBuffered_ == other.AtomicClockListBuffered_ &&
+      return SieveList_ == other.SieveList_ &&
              curr_ == other.curr_ && dir_ == other.dir_;
     }
 
@@ -216,7 +216,7 @@ class AtomicClockListBuffered {
     }
 
     explicit operator bool() const noexcept {
-      return curr_ != nullptr && AtomicClockListBuffered_ != nullptr;
+      return curr_ != nullptr && SieveList_ != nullptr;
     }
 
     T* get() const noexcept { return curr_; }
@@ -226,8 +226,8 @@ class AtomicClockListBuffered {
 
     // Reset the iterator back to the beginning
     void resetToBegin() noexcept {
-      curr_ = dir_ == Direction::FROM_HEAD ? AtomicClockListBuffered_->head_
-                                           : AtomicClockListBuffered_->tail_;
+      curr_ = dir_ == Direction::FROM_HEAD ? SieveList_->head_
+                                           : SieveList_->tail_;
     }
 
    protected:
@@ -238,7 +238,7 @@ class AtomicClockListBuffered {
     T* curr_{nullptr};
     // the direction we are iterating.
     Direction dir_{Direction::FROM_HEAD};
-    const AtomicClockListBuffered<T, HookPtr>* AtomicClockListBuffered_{nullptr};
+    const SieveList<T, HookPtr>* SieveList_{nullptr};
   };
 
   // provides an iterator starting from the head of the linked list.
@@ -258,7 +258,7 @@ class AtomicClockListBuffered {
   // previous.
   void unlink(const T& node) noexcept;
 
-  void prepareEvictionCandidates() noexcept;
+  // void prepareEvictionCandidates() noexcept;
 
   void markAccessed(T& node) noexcept {
     node.template setFlag<RefFlags::kMMFlag1>();
@@ -284,44 +284,13 @@ class AtomicClockListBuffered {
   // tail of the linked list
   std::atomic<T*> tail_{nullptr};
 
-  // AtomicClock hand
+  // Sieve hand
   std::atomic<T*> curr_{nullptr};
 
   // size of the list
   std::atomic<size_t> size_{0};
-
-// #define USE_MYCLOCK_ATOMIC
-// #define USE_NO_BUFFER
-#define USE_MPMC_QUEUE
-
-#ifdef USE_EVICTION_BUFFER
-  std::atomic<size_t> nEvictionCandidates_{0};
-
-  std::atomic<T*> evictCandidateBuf_[nMaxEvictionCandidates_]{nullptr};
-
-  std::atomic<size_t> bufIdx_{nMaxEvictionCandidates_};
-
-  size_t nCandidateToPrepare() {
-    size_t n = 0;
-    n = std::min(size_.load() / 4, nMaxEvictionCandidates_);
-    n = std::max(n, 1ul);
-    return n;
-  }
-#endif
-#ifdef USE_MPMC_QUEUE
-  folly::MPMCQueue<T*> evictCandidateQueue_{nMaxEvictionCandidates_};
-
-  /* different from previous one - we load 1/4 of the nMax */
-  size_t nCandidateToPrepare() {
-    size_t n = 0;
-    n = std::min(size_.load(), nMaxEvictionCandidates_);
-    n = std::max(n / 4, 1ul);
-    return n;
-  }
-
-#endif
 };
 }  // namespace cachelib
 }  // namespace facebook
 
-#include "cachelib/allocator/datastruct/AtomicClockListBuffered-inl.h"
+#include "cachelib/allocator/datastruct/SieveList-inl.h"

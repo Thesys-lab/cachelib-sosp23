@@ -7,10 +7,10 @@ using namespace facebook::cachelib;
 using Cache = facebook::cachelib::LruAllocator;
 #elif defined(USE_CLOCK)
 using Cache = facebook::cachelib::ClockAllocator;
-#elif defined(USE_ATOMICCLOCK)
-using Cache = facebook::cachelib::AtomicClockAllocator;
-#elif defined(USE_ATOMICCLOCKBUFFERED)
-using Cache = facebook::cachelib::AtomicClockBufferedAllocator;
+#elif defined(USE_SIEVE)
+using Cache = facebook::cachelib::SieveAllocator;
+#elif defined(USE_SIEVEBUFFERED)
+using Cache = facebook::cachelib::SieveBufferedAllocator;
 #elif defined(USE_S3FIFO)
 using Cache = S3FIFOAllocator;
 #elif defined(USE_TWOQ)

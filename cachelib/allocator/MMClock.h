@@ -193,8 +193,6 @@ class MMClock {
 
       LockedIterator(LockedIterator&&) noexcept = default;
 
-#define USE_MYCLOCK
-
       LockedIterator& operator++() {
         // no impact for clock
         findNextEvictionCandidate();
@@ -268,7 +266,7 @@ class MMClock {
             break;
           }
           unmarkAccessed(*node);
-#ifdef USE_MYCLOCK
+#ifdef USE_SIEVE
           ++iter_;
 #else
           /* clock */
@@ -283,7 +281,7 @@ class MMClock {
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
       // create an lru iterator with the lock being held.
-#ifdef USE_MYCLOCK
+#ifdef USE_SIEVE
       LockedIterator(LockHolder l, FRList* fifo)
           : fifo_(fifo), iter_(fifo_->evictBegin()), l_(std::move(l)) {
             if (fifo_->size() > 0)

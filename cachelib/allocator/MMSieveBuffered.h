@@ -30,7 +30,7 @@
 #include "cachelib/allocator/Cache.h"
 #include "cachelib/allocator/CacheStats.h"
 #include "cachelib/allocator/Util.h"
-#include "cachelib/allocator/datastruct/AtomicClockListBuffered.h"
+#include "cachelib/allocator/datastruct/SieveListBuffered.h"
 #include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 #include "cachelib/common/CompilerUtils.h"
 #include "cachelib/common/Mutex.h"
@@ -46,23 +46,23 @@ namespace cachelib {
 // otherwise, the tracked freq reduces by one and insert the object back
 //
 // other names: Clock / Second Chance
-class MMAtomicClockBuffered {
+class MMSieveBuffered {
  public:
   // unique identifier per MMType
   static const int kId;
 
   // forward declaration;
   template <typename T>
-  using Hook = AtomicClockListBufferedHook<T>;
-  using SerializationType = serialization::MMAtomicClockBufferedObject;
-  using SerializationConfigType = serialization::MMAtomicClockBufferedConfig;
-  using SerializationTypeContainer = serialization::MMAtomicClockBufferedCollection;
+  using Hook = SieveListBufferedHook<T>;
+  using SerializationType = serialization::MMSieveBufferedObject;
+  using SerializationConfigType = serialization::MMSieveBufferedConfig;
+  using SerializationTypeContainer = serialization::MMSieveBufferedCollection;
 
-  // This is not applicable for MMAtomicClockBuffered, just for compile of cache
+  // This is not applicable for MMSieveBuffered, just for compile of cache
   // allocator
   enum LruType { NumTypes };
 
-  // Config class for MMAtomicClockBuffered
+  // Config class for MMSieveBuffered
   struct Config {
     // create from serialized config
     explicit Config(SerializationConfigType configState)
@@ -155,7 +155,7 @@ class MMAtomicClockBuffered {
   template <typename T, Hook<T> T::*HookPtr>
   struct Container {
    private:
-    using FRList = AtomicClockListBuffered<T, HookPtr>;
+    using FRList = SieveListBuffered<T, HookPtr>;
     using Mutex = folly::DistributedMutex;
     using LockHolder = std::unique_lock<Mutex>;
     using PtrCompressor = typename T::PtrCompressor;
@@ -175,7 +175,7 @@ class MMAtomicClockBuffered {
               : static_cast<Time>(util::getCurrentTimeSec()) +
                     config_.mmReconfigureIntervalSecs.count();
     }
-    Container(serialization::MMAtomicClockBufferedObject object,
+    Container(serialization::MMSieveBufferedObject object,
               PtrCompressor compressor);
 
     Container(const Container&) = delete;
@@ -194,8 +194,6 @@ class MMAtomicClockBuffered {
       LockedIterator& operator=(const LockedIterator&) = delete;
 
       LockedIterator(LockedIterator&&) noexcept = default;
-
-#define USE_MYCLOCK_ATOMIC
 
       LockedIterator& operator++() {
         // no impact for clock
@@ -250,7 +248,7 @@ class MMAtomicClockBuffered {
       }
 
       // private because it's easy to misuse and cause deadlock for
-      // MMAtomicClockBuffered
+      // MMSieveBuffered
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
       // create an lru iterator with the lock being held.
@@ -369,7 +367,7 @@ class MMAtomicClockBuffered {
     // present. Any modification of this object afterwards will result in an
     // invalid, inconsistent state for the serialized data.
     //
-    serialization::MMAtomicClockBufferedObject saveState() const noexcept;
+    serialization::MMSieveBufferedObject saveState() const noexcept;
 
     // return the stats for this container.
     MMContainerStat getStats() const noexcept;
@@ -457,17 +455,17 @@ class MMAtomicClockBuffered {
     // std::atomic<uint32_t> lruRefreshTime_{};
 
     // Config for this lru.
-    // Write access to the MMAtomicClockBuffered Config is serialized.
+    // Write access to the MMSieveBuffered Config is serialized.
     // Reads may be racy.
     Config config_{};
 
     // // Max lruFreshTime.
     // static constexpr uint32_t kLruRefreshTimeCap{900};
 
-    FRIEND_TEST(MMAtomicClockBufferedTest, Reconfigure);
+    FRIEND_TEST(MMSieveBufferedTest, Reconfigure);
   };
 };
 }  // namespace cachelib
 }  // namespace facebook
 
-#include "cachelib/allocator/MMAtomicClockBuffered-inl.h"
+#include "cachelib/allocator/MMSieveBuffered-inl.h"

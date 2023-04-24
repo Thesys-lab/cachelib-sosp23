@@ -156,50 +156,50 @@ struct MMClockCollection {
   1: required map<i32, map<i32, MMClockObject>> pools,
 }
 
-struct MMAtomicClockConfig {
+struct MMSieveConfig {
   2: required bool updateOnWrite,
   3: required i32 lruInsertionPointSpec,
   4: bool updateOnRead = true,
   5: bool tryLockUpdate = false,
 }
 
-struct MMAtomicClockObject {
-  1: required MMAtomicClockConfig config,
+struct MMSieveObject {
+  1: required MMSieveConfig config,
 
   // number of evictions for this MM object.
   5: i64 evictions = 0,
 
   6: required i64 insertionPoint,
   7: required i64 tailSize,
-  8: required AtomicClockListObject fifo,
+  8: required SieveListObject fifo,
   9: required i64 compressedInsertionPoint,
 }
 
-struct MMAtomicClockCollection {
-  1: required map<i32, map<i32, MMAtomicClockObject>> pools,
+struct MMSieveCollection {
+  1: required map<i32, map<i32, MMSieveObject>> pools,
 }
 
-struct MMAtomicClockBufferedConfig {
+struct MMSieveBufferedConfig {
   2: required bool updateOnWrite,
   3: required i32 lruInsertionPointSpec,
   4: bool updateOnRead = true,
   5: bool tryLockUpdate = false,
 }
 
-struct MMAtomicClockBufferedObject {
-  1: required MMAtomicClockBufferedConfig config,
+struct MMSieveBufferedObject {
+  1: required MMSieveBufferedConfig config,
 
   // number of evictions for this MM object.
   5: i64 evictions = 0,
 
   6: required i64 insertionPoint,
   7: required i64 tailSize,
-  8: required AtomicClockListBufferedObject fifo,
+  8: required SieveListBufferedObject fifo,
   9: required i64 compressedInsertionPoint,
 }
 
-struct MMAtomicClockBufferedCollection {
-  1: required map<i32, map<i32, MMAtomicClockBufferedObject>> pools,
+struct MMSieveBufferedCollection {
+  1: required map<i32, map<i32, MMSieveBufferedObject>> pools,
 }
 
 struct MMS3FIFOConfig {

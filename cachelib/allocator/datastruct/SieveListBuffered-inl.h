@@ -20,12 +20,11 @@ namespace cachelib {
 
 /* when linkedAtHead uses atomic op,
  * it is possible to conflict with the node that unlink the head when using
- * myclock
  */
 
 /* Linked list implemenation */
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::linkAtHead(T& node) noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::linkAtHead(T& node) noexcept {
   setPrev(node, nullptr);
 
   T* oldHead = head_.load();
@@ -51,8 +50,8 @@ void AtomicClockListBuffered<T, HookPtr>::linkAtHead(T& node) noexcept {
   size_++;
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::unlink(const T& node) noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::unlink(const T& node) noexcept {
   if (mtx_->try_lock()) {
     // we should have locked the mutex
     abort();
@@ -88,8 +87,8 @@ void AtomicClockListBuffered<T, HookPtr>::unlink(const T& node) noexcept {
   size_--;
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::remove(T& node) noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::remove(T& node) noexcept {
   auto* const prev = getPrev(node);
   auto* const next = getNext(node);
   if (prev == nullptr && next == nullptr) {
@@ -102,8 +101,8 @@ void AtomicClockListBuffered<T, HookPtr>::remove(T& node) noexcept {
   setPrev(node, nullptr);
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   printf("replace\n");
   LockHolder l(*mtx_);
 
@@ -137,8 +136,8 @@ void AtomicClockListBuffered<T, HookPtr>::replace(T& oldNode, T& newNode) noexce
   setNext(oldNode, nullptr);
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::moveToHead(T& node) noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::moveToHead(T& node) noexcept {
   if (&node == head_) {
     return;
   }
@@ -147,8 +146,8 @@ void AtomicClockListBuffered<T, HookPtr>::moveToHead(T& node) noexcept {
 }
 
 #ifdef USE_MPMC_QUEUE
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-T* AtomicClockListBuffered<T, HookPtr>::getEvictionCandidate() noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+T* SieveListBuffered<T, HookPtr>::getEvictionCandidate() noexcept {
   // LockHolder l(*mtx_);
   if (evictCandidateQueue_.sizeGuess() < nMaxEvictionCandidates_ / 4) {
     if (size_.load() == 0) {
@@ -173,8 +172,8 @@ T* AtomicClockListBuffered<T, HookPtr>::getEvictionCandidate() noexcept {
   return ret;
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
   LockHolder l(*mtx_);
   if (evictCandidateQueue_.sizeGuess() > nMaxEvictionCandidates_ / 4 * 3) {
     return;
@@ -187,13 +186,12 @@ void AtomicClockListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
   T* next;
   T* firstRetainedNode = curr;
   while (nCandidate > 0) {
-#ifdef USE_MYCLOCK_ATOMIC
     if (curr == headWhenStart)
     // we turn around when we reach headWhenStart to avoid
     // delinking the head and conflicting with the insert operation
-#else
-    if (curr == head_.load())
-#endif
+    /****** clock *******/
+    // if (curr == head_.load())
+    /****** clock *******/
     {
       curr = tail_.load();
       if (n_iters++ > 2) {
@@ -203,14 +201,15 @@ void AtomicClockListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
     }
     if (isAccessed(*curr)) {
       unmarkAccessed(*curr);
-#ifdef USE_MYCLOCK_ATOMIC
       curr = getPrev(*curr);
-#else
-      next = getPrev(*curr);
-      // move the node to the head of the list
-      moveToHead(*curr);
-      curr = next;
-#endif
+
+      /****** clock *******/
+      // next = getPrev(*curr);
+      // // move the node to the head of the list
+      // moveToHead(*curr);
+      // curr = next;
+      /****** clock *******/
+
     } else {
       nCandidate--;
       next = getPrev(*curr);
@@ -227,8 +226,8 @@ void AtomicClockListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
 #endif
 
 #ifdef USE_EVICTION_BUFFER
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-T* AtomicClockListBuffered<T, HookPtr>::getEvictionCandidate() noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+T* SieveListBuffered<T, HookPtr>::getEvictionCandidate() noexcept {
   // TODO it may happen that the prepare happen while some other threads are
   // still using the old eviction candidates. This is not a correctness issue
   // we can use two buffers and atomic swap to avoid this
@@ -248,8 +247,8 @@ T* AtomicClockListBuffered<T, HookPtr>::getEvictionCandidate() noexcept {
   return ret;
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
   // TODO: we can release the candidate early
   LockHolder l(*mtx_);
   if (bufIdx_.load() < nEvictionCandidates_.load()) {
@@ -267,14 +266,13 @@ void AtomicClockListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
   // are moved to eviction candidate buffer
   T* firstRetainedNode = curr;
   while (idx < nCandidate) {
-#ifdef USE_MYCLOCK_ATOMIC
     if (curr == headWhenStart || curr == nullptr)
     // we turn around when we reach headWhenStart to avoid
     // delinking the head and conflicting with the insert operation
     // the nullptr check is because of a bug that appears rarely
-#else
-    if (curr == head_.load())
-#endif
+    /****** clock *******/
+    // if (curr == head_.load())
+    /****** clock *******/
     {
       curr = tail_.load();
       if (n_iters++ > 2) {
@@ -284,14 +282,13 @@ void AtomicClockListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
     }
     if (isAccessed(*curr)) {
       unmarkAccessed(*curr);
-#ifdef USE_MYCLOCK_ATOMIC
       curr = getPrev(*curr);
-#else
-      next = getPrev(*curr);
-      // move the node to the head of the list
-      moveToHead(*curr);
-      curr = next;
-#endif
+      /****** clock *******/
+      // next = getPrev(*curr);
+      // // move the node to the head of the list
+      // moveToHead(*curr);
+      // curr = next;
+    /****** clock *******/
     } else {
       while (evictCandidateBuf_[idx] != nullptr) {
         // spin and wait for the evict candidate to be fetched
@@ -318,27 +315,27 @@ void AtomicClockListBuffered<T, HookPtr>::prepareEvictionCandidates() noexcept {
 
 
 /* Iterator Implementation */
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::Iterator::goForward() noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::Iterator::goForward() noexcept {
   if (dir_ == Direction::FROM_TAIL) {
-    curr_ = AtomicClockListBuffered_->getPrev(*curr_);
+    curr_ = SieveListBuffered_->getPrev(*curr_);
   } else {
-    curr_ = AtomicClockListBuffered_->getNext(*curr_);
+    curr_ = SieveListBuffered_->getNext(*curr_);
   }
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-void AtomicClockListBuffered<T, HookPtr>::Iterator::goBackward() noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+void SieveListBuffered<T, HookPtr>::Iterator::goBackward() noexcept {
   if (dir_ == Direction::FROM_TAIL) {
-    curr_ = AtomicClockListBuffered_->getNext(*curr_);
+    curr_ = SieveListBuffered_->getNext(*curr_);
   } else {
-    curr_ = AtomicClockListBuffered_->getPrev(*curr_);
+    curr_ = SieveListBuffered_->getPrev(*curr_);
   }
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-typename AtomicClockListBuffered<T, HookPtr>::Iterator&
-AtomicClockListBuffered<T, HookPtr>::Iterator::operator++() noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+typename SieveListBuffered<T, HookPtr>::Iterator&
+SieveListBuffered<T, HookPtr>::Iterator::operator++() noexcept {
   XDCHECK(curr_ != nullptr);
   if (curr_ != nullptr) {
     goForward();
@@ -346,9 +343,9 @@ AtomicClockListBuffered<T, HookPtr>::Iterator::operator++() noexcept {
   return *this;
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-typename AtomicClockListBuffered<T, HookPtr>::Iterator&
-AtomicClockListBuffered<T, HookPtr>::Iterator::operator--() noexcept {
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+typename SieveListBuffered<T, HookPtr>::Iterator&
+SieveListBuffered<T, HookPtr>::Iterator::operator--() noexcept {
   XDCHECK(curr_ != nullptr);
   if (curr_ != nullptr) {
     goBackward();
@@ -356,31 +353,31 @@ AtomicClockListBuffered<T, HookPtr>::Iterator::operator--() noexcept {
   return *this;
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-typename AtomicClockListBuffered<T, HookPtr>::Iterator
-AtomicClockListBuffered<T, HookPtr>::begin() const noexcept {
-  return AtomicClockListBuffered<T, HookPtr>::Iterator(
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+typename SieveListBuffered<T, HookPtr>::Iterator
+SieveListBuffered<T, HookPtr>::begin() const noexcept {
+  return SieveListBuffered<T, HookPtr>::Iterator(
       head_, Iterator::Direction::FROM_HEAD, *this);
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-typename AtomicClockListBuffered<T, HookPtr>::Iterator
-AtomicClockListBuffered<T, HookPtr>::rbegin() const noexcept {
-  return AtomicClockListBuffered<T, HookPtr>::Iterator(
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+typename SieveListBuffered<T, HookPtr>::Iterator
+SieveListBuffered<T, HookPtr>::rbegin() const noexcept {
+  return SieveListBuffered<T, HookPtr>::Iterator(
       tail_, Iterator::Direction::FROM_TAIL, *this);
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-typename AtomicClockListBuffered<T, HookPtr>::Iterator
-AtomicClockListBuffered<T, HookPtr>::end() const noexcept {
-  return AtomicClockListBuffered<T, HookPtr>::Iterator(
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+typename SieveListBuffered<T, HookPtr>::Iterator
+SieveListBuffered<T, HookPtr>::end() const noexcept {
+  return SieveListBuffered<T, HookPtr>::Iterator(
       nullptr, Iterator::Direction::FROM_HEAD, *this);
 }
 
-template <typename T, AtomicClockListBufferedHook<T> T::*HookPtr>
-typename AtomicClockListBuffered<T, HookPtr>::Iterator
-AtomicClockListBuffered<T, HookPtr>::rend() const noexcept {
-  return AtomicClockListBuffered<T, HookPtr>::Iterator(
+template <typename T, SieveListBufferedHook<T> T::*HookPtr>
+typename SieveListBuffered<T, HookPtr>::Iterator
+SieveListBuffered<T, HookPtr>::rend() const noexcept {
+  return SieveListBuffered<T, HookPtr>::Iterator(
       nullptr, Iterator::Direction::FROM_TAIL, *this);
 }
 

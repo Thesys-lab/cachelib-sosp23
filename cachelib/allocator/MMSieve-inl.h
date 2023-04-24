@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-// #include "cachelib/allocator/MMAtomicClockBuffered.h"
+// #include "cachelib/allocator/MMSieve.h"
 
 
 namespace facebook {
 namespace cachelib {
 
 /* Container Interface Implementation */
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-MMAtomicClockBuffered::Container<T, HookPtr>::Container(
-    serialization::MMAtomicClockBufferedObject object, PtrCompressor compressor)
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+MMSieve::Container<T, HookPtr>::Container(
+    serialization::MMSieveObject object, PtrCompressor compressor)
     : compressor_(std::move(compressor)),
       fifo_(*object.fifo(), compressor_),
       insertionPoint_(compressor_.unCompress(
@@ -36,8 +36,8 @@ MMAtomicClockBuffered::Container<T, HookPtr>::Container(
                                    config_.mmReconfigureIntervalSecs.count();
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-bool MMAtomicClockBuffered::Container<T, HookPtr>::recordAccess(
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+bool MMSieve::Container<T, HookPtr>::recordAccess(
     T& node, AccessMode mode) noexcept {
   if ((mode == AccessMode::kWrite && !config_.updateOnWrite) ||
       (mode == AccessMode::kRead && !config_.updateOnRead)) {
@@ -88,18 +88,18 @@ bool MMAtomicClockBuffered::Container<T, HookPtr>::recordAccess(
   return false;
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
 cachelib::EvictionAgeStat
-MMAtomicClockBuffered::Container<T, HookPtr>::getEvictionAgeStat(
+MMSieve::Container<T, HookPtr>::getEvictionAgeStat(
     uint64_t projectedLength) const noexcept {
   return lruMutex_->lock_combine([this, projectedLength]() {
     return getEvictionAgeStatLocked(projectedLength);
   });
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
 cachelib::EvictionAgeStat
-MMAtomicClockBuffered::Container<T, HookPtr>::getEvictionAgeStatLocked(
+MMSieve::Container<T, HookPtr>::getEvictionAgeStatLocked(
     uint64_t projectedLength) const noexcept {
   EvictionAgeStat stat{};
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
@@ -115,8 +115,8 @@ MMAtomicClockBuffered::Container<T, HookPtr>::getEvictionAgeStatLocked(
   return stat;
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-void MMAtomicClockBuffered::Container<T, HookPtr>::setConfig(const Config& newConfig) {
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+void MMSieve::Container<T, HookPtr>::setConfig(const Config& newConfig) {
   // lruMutex_->lock_combine([this, newConfig]() {
   //   config_ = newConfig;
   //   if (config_.lruInsertionPointSpec == 0 && insertionPoint_ != nullptr) {
@@ -137,14 +137,14 @@ void MMAtomicClockBuffered::Container<T, HookPtr>::setConfig(const Config& newCo
   // });
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-typename MMAtomicClockBuffered::Config MMAtomicClockBuffered::Container<T, HookPtr>::getConfig()
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+typename MMSieve::Config MMSieve::Container<T, HookPtr>::getConfig()
     const {
   return lruMutex_->lock_combine([this]() { return config_; });
 }
 
-// template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-// void MMAtomicClockBuffered::Container<T, HookPtr>::updateLruInsertionPoint() noexcept
+// template <typename T, MMSieve::Hook<T> T::*HookPtr>
+// void MMSieve::Container<T, HookPtr>::updateLruInsertionPoint() noexcept
 // {
 //   if (config_.lruInsertionPointSpec == 0) {
 //     return;
@@ -186,8 +186,8 @@ typename MMAtomicClockBuffered::Config MMAtomicClockBuffered::Container<T, HookP
 //   insertionPoint_ = curr;
 // }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-bool MMAtomicClockBuffered::Container<T, HookPtr>::add(T& node) noexcept {
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+bool MMSieve::Container<T, HookPtr>::add(T& node) noexcept {
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
   if (node.isInMMContainer()) {
@@ -216,18 +216,18 @@ bool MMAtomicClockBuffered::Container<T, HookPtr>::add(T& node) noexcept {
   // });
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-typename MMAtomicClockBuffered::Container<T, HookPtr>::LockedIterator
-MMAtomicClockBuffered::Container<T, HookPtr>::getEvictionIterator() noexcept {
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+typename MMSieve::Container<T, HookPtr>::LockedIterator
+MMSieve::Container<T, HookPtr>::getEvictionIterator() noexcept {
   // LockHolder l(*lruMutex_);
   // auto liter = LockedIterator{std::move(l), &fifo_};
   auto liter = LockedIterator{&fifo_};
   return liter;
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
 template <typename F>
-void MMAtomicClockBuffered::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
+void MMSieve::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
   if (config_.useCombinedLockForIterators) {
     lruMutex_->lock_combine([this, &fun]() { fun(Iterator{fifo_.rbegin()}); });
   } else {
@@ -236,8 +236,8 @@ void MMAtomicClockBuffered::Container<T, HookPtr>::withEvictionIterator(F&& fun)
   }
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-void MMAtomicClockBuffered::Container<T, HookPtr>::ensureNotInsertionPoint(
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+void MMSieve::Container<T, HookPtr>::ensureNotInsertionPoint(
     T& node) noexcept {
   // If we are removing the insertion point node, grow tail before we remove
   // so that insertionPoint_ is valid (or nullptr) after removal
@@ -252,8 +252,8 @@ void MMAtomicClockBuffered::Container<T, HookPtr>::ensureNotInsertionPoint(
   }
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-void MMAtomicClockBuffered::Container<T, HookPtr>::removeLocked(T& node) {
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+void MMSieve::Container<T, HookPtr>::removeLocked(T& node) {
   ensureNotInsertionPoint(node);
   fifo_.remove(node);
   unmarkAccessed(node);
@@ -266,8 +266,8 @@ void MMAtomicClockBuffered::Container<T, HookPtr>::removeLocked(T& node) {
   return;
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-bool MMAtomicClockBuffered::Container<T, HookPtr>::remove(T& node) noexcept {
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+bool MMSieve::Container<T, HookPtr>::remove(T& node) noexcept {
   return lruMutex_->lock_combine([this, &node]() {
     if (!node.isInMMContainer()) {
       return false;
@@ -277,24 +277,24 @@ bool MMAtomicClockBuffered::Container<T, HookPtr>::remove(T& node) noexcept {
   });
 }
 
-// template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-// void MMAtomicClockBuffered::Container<T, HookPtr>::remove(Iterator& it) noexcept {
+// template <typename T, MMSieve::Hook<T> T::*HookPtr>
+// void MMSieve::Container<T, HookPtr>::remove(Iterator& it) noexcept {
 //   T& node = *it;
 //   XDCHECK(node.isInMMContainer());
 //   ++it;
 //   removeLocked(node);
 // }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-void MMAtomicClockBuffered::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+void MMSieve::Container<T, HookPtr>::remove(LockedIterator& it) noexcept {
   T& node = *it;
   XDCHECK(node.isInMMContainer());
   // ++it;
   removeLocked(node);
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-bool MMAtomicClockBuffered::Container<T, HookPtr>::replace(T& oldNode,
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+bool MMSieve::Container<T, HookPtr>::replace(T& oldNode,
                                                    T& newNode) noexcept {
   return lruMutex_->lock_combine([this, &oldNode, &newNode]() {
     if (!oldNode.isInMMContainer() || newNode.isInMMContainer()) {
@@ -327,16 +327,16 @@ bool MMAtomicClockBuffered::Container<T, HookPtr>::replace(T& oldNode,
   });
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-serialization::MMAtomicClockBufferedObject
-MMAtomicClockBuffered::Container<T, HookPtr>::saveState() const noexcept {
-  serialization::MMAtomicClockBufferedConfig configObject;
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+serialization::MMSieveObject
+MMSieve::Container<T, HookPtr>::saveState() const noexcept {
+  serialization::MMSieveConfig configObject;
   *configObject.updateOnWrite() = config_.updateOnWrite;
   *configObject.updateOnRead() = config_.updateOnRead;
   *configObject.tryLockUpdate() = config_.tryLockUpdate;
   *configObject.lruInsertionPointSpec() = config_.lruInsertionPointSpec;
 
-  serialization::MMAtomicClockBufferedObject object;
+  serialization::MMSieveObject object;
   *object.config() = configObject;
   *object.compressedInsertionPoint() =
       compressor_.compress(insertionPoint_).saveState();
@@ -345,8 +345,8 @@ MMAtomicClockBuffered::Container<T, HookPtr>::saveState() const noexcept {
   return object;
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-MMContainerStat MMAtomicClockBuffered::Container<T, HookPtr>::getStats()
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+MMContainerStat MMSieve::Container<T, HookPtr>::getStats()
     const noexcept {
   auto stat = lruMutex_->lock_combine([this]() {
     auto* tail = fifo_.getTail();
@@ -365,8 +365,8 @@ MMContainerStat MMAtomicClockBuffered::Container<T, HookPtr>::getStats()
           0, 0, 0, 0, 0};
 }
 
-template <typename T, MMAtomicClockBuffered::Hook<T> T::*HookPtr>
-void MMAtomicClockBuffered::Container<T, HookPtr>::reconfigureLocked(
+template <typename T, MMSieve::Hook<T> T::*HookPtr>
+void MMSieve::Container<T, HookPtr>::reconfigureLocked(
     const Time& currTime) {
   if (currTime < nextReconfigureTime_) {
     return;

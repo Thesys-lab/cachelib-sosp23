@@ -23,8 +23,8 @@
 #include "cachelib/allocator/MMLru.h"
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
-#include "cachelib/allocator/MMAtomicClock.h"
-#include "cachelib/allocator/MMAtomicClockBuffered.h"
+#include "cachelib/allocator/MMSieve.h"
+#include "cachelib/allocator/MMSieveBuffered.h"
 #endif
 #include "cachelib/allocator/MMS3FIFO.h"
 #include "cachelib/common/Mutex.h"
@@ -70,14 +70,14 @@ struct ClockCacheTrait {
   using AccessTypeLocks = SharedMutexBuckets;
 };
 
-struct AtomicClockCacheTrait {
-  using MMType = MMAtomicClock;
+struct SieveCacheTrait {
+  using MMType = MMSieve;
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
 };
 
-struct AtomicClockBufferedCacheTrait {
-  using MMType = MMAtomicClockBuffered;
+struct SieveBufferedCacheTrait {
+  using MMType = MMSieveBuffered;
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
 };

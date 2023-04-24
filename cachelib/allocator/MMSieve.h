@@ -30,7 +30,7 @@
 #include "cachelib/allocator/Cache.h"
 #include "cachelib/allocator/CacheStats.h"
 #include "cachelib/allocator/Util.h"
-#include "cachelib/allocator/datastruct/AtomicClockList.h"
+#include "cachelib/allocator/datastruct/SieveList.h"
 #include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 #include "cachelib/common/CompilerUtils.h"
 #include "cachelib/common/Mutex.h"
@@ -46,23 +46,23 @@ namespace cachelib {
 // otherwise, the tracked freq reduces by one and insert the object back
 //
 // other names: Clock / Second Chance
-class MMAtomicClock {
+class MMSieve {
  public:
   // unique identifier per MMType
   static const int kId;
 
   // forward declaration;
   template <typename T>
-  using Hook = AtomicClockListHook<T>;
-  using SerializationType = serialization::MMAtomicClockObject;
-  using SerializationConfigType = serialization::MMAtomicClockConfig;
-  using SerializationTypeContainer = serialization::MMAtomicClockCollection;
+  using Hook = SieveListHook<T>;
+  using SerializationType = serialization::MMSieveObject;
+  using SerializationConfigType = serialization::MMSieveConfig;
+  using SerializationTypeContainer = serialization::MMSieveCollection;
 
-  // This is not applicable for MMAtomicClock, just for compile of cache
+  // This is not applicable for MMSieve, just for compile of cache
   // allocator
   enum LruType { NumTypes };
 
-  // Config class for MMAtomicClock
+  // Config class for MMSieve
   struct Config {
     // create from serialized config
     explicit Config(SerializationConfigType configState)
@@ -155,7 +155,7 @@ class MMAtomicClock {
   template <typename T, Hook<T> T::*HookPtr>
   struct Container {
    private:
-    using FRList = AtomicClockList<T, HookPtr>;
+    using FRList = SieveList<T, HookPtr>;
     using Mutex = folly::DistributedMutex;
     using LockHolder = std::unique_lock<Mutex>;
     using PtrCompressor = typename T::PtrCompressor;
@@ -175,7 +175,7 @@ class MMAtomicClock {
               : static_cast<Time>(util::getCurrentTimeSec()) +
                     config_.mmReconfigureIntervalSecs.count();
     }
-    Container(serialization::MMAtomicClockObject object,
+    Container(serialization::MMSieveObject object,
               PtrCompressor compressor);
 
     Container(const Container&) = delete;
@@ -194,8 +194,6 @@ class MMAtomicClock {
       LockedIterator& operator=(const LockedIterator&) = delete;
 
       LockedIterator(LockedIterator&&) noexcept = default;
-
-#define USE_MYCLOCK_ATOMIC
 
       LockedIterator& operator++() {
         // no impact for clock
@@ -218,19 +216,11 @@ class MMAtomicClock {
       // 1. Invalidate this iterator
       // 2. Unlock
       void destroy() {
-        // iter_.reset();
-        // if (l_.owns_lock()) {
-        //   l_.unlock();
-        // }
       }
 
       // Reset this iterator to the beginning
       void resetToBegin() {
         XLOG(WARN, "resetToBegin\n");
-        // if (!l_.owns_lock()) {
-        //   l_.lock();
-        // }
-        // iter_.resetToBegin();
       }
 
      private:
@@ -250,7 +240,7 @@ class MMAtomicClock {
       }
 
       // private because it's easy to misuse and cause deadlock for
-      // MMAtomicClock
+      // MMSieve
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
       // create an lru iterator with the lock being held.
@@ -268,8 +258,6 @@ class MMAtomicClock {
         XDCHECK_EQ(fifo_->getNext(*candidate_), nullptr);
       };
 
-      // l_(std::move(l))
-
       // only the container can create iterators
       friend Container<T, HookPtr>;
 
@@ -277,9 +265,6 @@ class MMAtomicClock {
 
       // Iterator iter_;
       T* candidate_;
-
-      // lock protecting the validity of the iterator
-      // LockHolder l_;
     };
 
     // records the information that the node was accessed. This could bump up
@@ -369,7 +354,7 @@ class MMAtomicClock {
     // present. Any modification of this object afterwards will result in an
     // invalid, inconsistent state for the serialized data.
     //
-    serialization::MMAtomicClockObject saveState() const noexcept;
+    serialization::MMSieveObject saveState() const noexcept;
 
     // return the stats for this container.
     MMContainerStat getStats() const noexcept;
@@ -457,17 +442,17 @@ class MMAtomicClock {
     // std::atomic<uint32_t> lruRefreshTime_{};
 
     // Config for this lru.
-    // Write access to the MMAtomicClock Config is serialized.
+    // Write access to the MMSieve Config is serialized.
     // Reads may be racy.
     Config config_{};
 
     // // Max lruFreshTime.
     // static constexpr uint32_t kLruRefreshTimeCap{900};
 
-    FRIEND_TEST(MMAtomicClockTest, Reconfigure);
+    FRIEND_TEST(MMSieveTest, Reconfigure);
   };
 };
 }  // namespace cachelib
 }  // namespace facebook
 
-#include "cachelib/allocator/MMAtomicClock-inl.h"
+#include "cachelib/allocator/MMSieve-inl.h"

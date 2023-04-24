@@ -47,13 +47,13 @@ struct ClockListObject {
   3: required i64 size,
 }
 
-struct AtomicClockListObject {
+struct SieveListObject {
   1: required i64 compressedHead,
   2: required i64 compressedTail,
   3: required i64 size,
 }
 
-struct AtomicClockListBufferedObject {
+struct SieveListBufferedObject {
   1: required i64 compressedHead,
   2: required i64 compressedTail,
   3: required i64 size,
