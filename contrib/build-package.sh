@@ -160,6 +160,7 @@ case "$1" in
     REPODIR=cachelib/external/$NAME
     SRCDIR=$REPODIR
     external_git_clone=yes
+    external_git_tag="9.1.0"
     cmake_custom_params="-DBUILD_SHARED_LIBS=ON"
     if test "$build_tests" = "yes" ; then
         cmake_custom_params="$cmake_custom_params -DFMT_TEST=YES"
@@ -274,6 +275,7 @@ dir=$(dirname "$0")
 cd "$dir/.." || die "failed to change-dir into $dir/.."
 test -d cachelib || die "expected 'cachelib' directory not found in $PWD"
 
+CMAKE_PARAMS="$CMAKE_PARAMS -G Ninja"
 
 # After ensuring we are in the correct directory, set the installation prefix"
 CMAKE_PARAMS="$CMAKE_PARAMS -DCMAKE_INSTALL_PREFIX=$PREFIX"
@@ -344,7 +346,8 @@ if test "$build" ; then
   # shellcheck disable=SC2086
   cmake $CMAKE_PARAMS "../$SRCDIR" || die "cmake failed on $SRCDIR"
   # shellcheck disable=SC2086
-  nice make $MAKE_PARAMS || die "make failed"
+  # nice make $MAKE_PARAMS || die "make failed"
+  ninja
 fi
 
 ## If no install requested, exit now
@@ -360,7 +363,8 @@ fi
 
 if test "$install" ; then
   # shellcheck disable=SC2086
-  make $MAKE_PARAMS install || die "make install failed"
+  # make $MAKE_PARAMS install || die "make install failed"
+  ninja install
 fi
 
 echo "'$NAME' is now installed"

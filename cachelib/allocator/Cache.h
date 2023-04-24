@@ -82,8 +82,8 @@ class CacheBase {
   // Movable but not copyable
   CacheBase(const CacheBase&) = delete;
   CacheBase& operator=(const CacheBase&) = delete;
-  CacheBase(CacheBase&&) = default;
-  CacheBase& operator=(CacheBase&&) = default;
+  CacheBase(CacheBase&&) = delete;
+  CacheBase& operator=(CacheBase&&) = delete;
 
   // Get a string referring to the cache name for this cache
   virtual const std::string getCacheName() const = 0;

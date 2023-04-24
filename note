@@ -1,0 +1,17 @@
+
+remove last_access time from object field: it.getLastAccessTime()
+doubly-linked list is needed to support remove 
+
+
+1. change to multiprocess build
+2. disable thrift gen file
+3. remove unnecessary lib build
+4. change cxx flag e.g., remove -ofast 
+5. use ninja
+
+
+
+
+learn 
+1. "-march=native -m64 -Ofast" can generate faster code
+2. 

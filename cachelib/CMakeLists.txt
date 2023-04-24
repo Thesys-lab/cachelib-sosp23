@@ -44,6 +44,33 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(BUILD_TESTS "If enabled, compile the tests." ON)
 
+############## new changes ################
+
+# CMAKE_PARAMS="$CMAKE_PARAMS -DCMAKE_INSTALL_PREFIX=$PREFIX"
+# CMAKE_PREFIX_PATH="$PREFIX/lib/cmake:$PREFIX/lib64/cmake:$PREFIX/lib:$PREFIX/lib64:$PREFIX:${CMAKE_PREFIX_PATH:-}"
+# PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
+# LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
+# PATH="$PREFIX/bin:$PATH"
+
+set(BUILD_TESTS OFF)
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
+set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../opt/cachelib/lib/cmake/"
+                      "${CMAKE_CURRENT_SOURCE_DIR}/../opt/cachelib/"
+)
+
+option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
+
+option (FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)
+if (${FORCE_COLORED_OUTPUT})
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        add_compile_options (-fdiagnostics-color=always)
+    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        add_compile_options (-fcolor-diagnostics)
+    endif ()
+endif ()
+
+
+############## end of new changes ################
 
 set(BIN_INSTALL_DIR bin CACHE STRING
     "The subdirectory where binaries should be installed")
@@ -85,6 +112,7 @@ set(CMAKE_MODULE_PATH
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 # include(fb_cxx_flags)
 message(STATUS "Update CXXFLAGS: ${CMAKE_CXX_FLAGS}")
 
@@ -169,6 +197,10 @@ endfunction()
 #     #${XBLOOM_THRIFT_FILES}
 #  )
 #add_dependencies(thrift_generated_files common_thrift_files)
+# function(add_thrift_file PREFIX THRIFT_RELATIVE_PATH CPP_OPTION)
+# endfunction()
+
+
 function(add_thrift_file PREFIX THRIFT_RELATIVE_PATH CPP_OPTION)
 
   # Get the basename of the thrift file
@@ -280,10 +312,10 @@ add_subdirectory (common)
 add_subdirectory (shm)
 add_subdirectory (navy)
 add_subdirectory (allocator)
-add_subdirectory (datatype)
-add_subdirectory (compact_cache)
-add_subdirectory (benchmarks)
-add_subdirectory (cachebench)
+# add_subdirectory (datatype)
+# add_subdirectory (compact_cache)
+# add_subdirectory (benchmarks)
+# add_subdirectory (cachebench)
 
 # Install the source header files
 install(
@@ -368,9 +400,9 @@ install(EXPORT cachelib-exports
 if (BUILD_SHARED_LIBS)
   set_target_properties(
     cachelib_allocator
-    cachelib_cachebench
+    # cachelib_cachebench
     cachelib_common
-    cachelib_datatype
+    # cachelib_datatype
     cachelib_navy
     cachelib_shm
     PROPERTIES

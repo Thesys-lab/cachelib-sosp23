@@ -133,8 +133,105 @@ struct MMTinyLFUCollection {
   1: required map<i32, map<i32, MMTinyLFUObject>> pools,
 }
 
+struct MMClockConfig {
+  2: required bool updateOnWrite,
+  3: required i32 lruInsertionPointSpec,
+  4: bool updateOnRead = true,
+  5: bool tryLockUpdate = false,
+}
+
+struct MMClockObject {
+  1: required MMClockConfig config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  6: required i64 insertionPoint,
+  7: required i64 tailSize,
+  8: required ClockListObject fifo,
+  9: required i64 compressedInsertionPoint,
+}
+
+struct MMClockCollection {
+  1: required map<i32, map<i32, MMClockObject>> pools,
+}
+
+struct MMSieveConfig {
+  2: required bool updateOnWrite,
+  3: required i32 lruInsertionPointSpec,
+  4: bool updateOnRead = true,
+  5: bool tryLockUpdate = false,
+}
+
+struct MMSieveObject {
+  1: required MMSieveConfig config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  6: required i64 insertionPoint,
+  7: required i64 tailSize,
+  8: required SieveListObject fifo,
+  9: required i64 compressedInsertionPoint,
+}
+
+struct MMSieveCollection {
+  1: required map<i32, map<i32, MMSieveObject>> pools,
+}
+
+struct MMSieveBufferedConfig {
+  2: required bool updateOnWrite,
+  3: required i32 lruInsertionPointSpec,
+  4: bool updateOnRead = true,
+  5: bool tryLockUpdate = false,
+}
+
+struct MMSieveBufferedObject {
+  1: required MMSieveBufferedConfig config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  6: required i64 insertionPoint,
+  7: required i64 tailSize,
+  8: required SieveListBufferedObject fifo,
+  9: required i64 compressedInsertionPoint,
+}
+
+struct MMSieveBufferedCollection {
+  1: required map<i32, map<i32, MMSieveBufferedObject>> pools,
+}
+
+struct MMS3FIFOConfig {
+  2: required bool updateOnWrite,
+  4: bool updateOnRead = true,
+}
+
+struct MMS3FIFOObject {
+  1: required MMS3FIFOConfig config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  8: required S3FIFOListObject qdlist,
+}
+
+struct MMS3FIFOCollection {
+  1: required map<i32, map<i32, MMS3FIFOObject>> pools,
+}
+
 struct ChainedHashTableObject {
   // fields in ChainedHashTable::Config
+  1: required i32 bucketsPower,
+  2: required i32 locksPower,
+  3: i64 numKeys,
+
+  // this magic id ensures on a warm roll, user cannot
+  // start the cache with a different hash function
+  4: i32 hasherMagicId = 0,
+}
+
+struct BucketHashTableObject {
   1: required i32 bucketsPower,
   2: required i32 locksPower,
   3: i64 numKeys,

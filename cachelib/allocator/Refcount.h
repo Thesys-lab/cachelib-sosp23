@@ -100,6 +100,9 @@ class FOLLY_PACK_ATTR RefcountWithFlags {
     kMMFlag1,
     kMMFlag2,
 
+    // whether the object has been visited
+    kMMVisited,
+
     // Whether or not an item is a regular item or chained alloc
     kIsChainedItem,
 
