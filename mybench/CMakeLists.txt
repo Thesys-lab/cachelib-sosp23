@@ -52,7 +52,7 @@ target_link_libraries(clock cachelib fmt::fmt atomic)
 
 add_executable(sieve main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
 target_compile_definitions(sieve PRIVATE USE_SIEVE)
-target_link_libraries(sieve cachelib fmt::fmt atomic) 
+target_link_libraries(sieve cachelib fmt::fmt atomic)
 
 add_executable(sievebuffered main.cpp reader.cpp bench.cpp benchMT.cpp cache.cpp)
 target_compile_definitions(sievebuffered PRIVATE USE_SIEVEBUFFERED)

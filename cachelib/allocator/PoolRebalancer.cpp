@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "cachelib/allocator/PoolRebalancer.h"
-
 #include <folly/logging/xlog.h>
 
 #include <stdexcept>
 #include <thread>
+
+#include "cachelib/allocator/PoolRebalancer.h"
 
 namespace facebook {
 namespace cachelib {
@@ -51,8 +51,7 @@ void PoolRebalancer::work() {
   }
 }
 
-void PoolRebalancer::releaseSlab(PoolId pid,
-                                 ClassId victimClassId,
+void PoolRebalancer::releaseSlab(PoolId pid, ClassId victimClassId,
                                  ClassId receiverClassId) {
   const auto now = util::getCurrentTimeMs();
 
@@ -105,6 +104,7 @@ RebalanceContext PoolRebalancer::pickVictimByFreeAlloc(PoolId pid) const {
 bool PoolRebalancer::tryRebalancing(PoolId pid, RebalanceStrategy& strategy) {
   if (freeAllocThreshold_ > 0) {
     auto ctx = pickVictimByFreeAlloc(pid);
+    // printf("release %d\n", ctx.victimClassId);
     if (ctx.victimClassId != Slab::kInvalidClassId) {
       releaseSlab(pid, ctx.victimClassId, Slab::kInvalidClassId);
     }
@@ -115,9 +115,9 @@ bool PoolRebalancer::tryRebalancing(PoolId pid, RebalanceStrategy& strategy) {
   }
 
   const auto context = strategy.pickVictimAndReceiver(cache_, pid);
+  // printf("release2 %d\n", context.victimClassId);
   if (context.victimClassId == Slab::kInvalidClassId) {
-    XLOGF(DBG,
-          "Pool Id: {} rebalancing strategy didn't find an victim",
+    XLOGF(DBG, "Pool Id: {} rebalancing strategy didn't find an victim",
           static_cast<int>(pid));
     return false;
   }
@@ -125,5 +125,5 @@ bool PoolRebalancer::tryRebalancing(PoolId pid, RebalanceStrategy& strategy) {
   return true;
 }
 
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook
