@@ -8,6 +8,7 @@
 
 #include "cachelib/allocator/LruTailAgeStrategy.h"
 #include "cachelib/allocator/MarginalHitsStrategy.h"
+#include "cachelib/allocator/HitsPerSlabStrategy.h"
 #include "cachelib/allocator/RebalanceStrategy.h"
 #include "cachelib/common/Time.h"
 
@@ -34,13 +35,16 @@ void mycache_init(int64_t cache_size_in_mb, unsigned int hashpower,
                        Cache **cache_p, PoolId *pool_p) {
   Cache::Config config;
 
-  auto rebalance_strategy = std::make_shared<LruTailAgeStrategy>();
-  auto rebalance_strategy2 = std::make_shared<MarginalHitsStrategy>();
+  auto rebalance_strategy = std::make_shared<HitsPerSlabStrategy>();
+  // only works for LRU
+  // auto rebalance_strategy = std::make_shared<LruTailAgeStrategy>();
+  // only works for 2Q
+  // auto rebalance_strategy = std::make_shared<MarginalHitsStrategy>();
 
   config.setCacheSize(cache_size_in_mb * 1024 * 1024)
       .setCacheName("My cache")
       // .enableItemReaperInBackground(std::chrono::seconds(1), {})
-      // .enablePoolRebalancing(rebalance_strategy2, std::chrono::seconds(1))
+      // .enablePoolRebalancing(rebalance_strategy, std::chrono::seconds(1))
 #ifdef USE_STRICTLRU
       .setAccessConfig({hashpower, 1})
 #else
@@ -103,7 +107,7 @@ int cache_get(Cache *cache, PoolId pool, struct request *req) {
       assert(!item_handle->isExpired());
       const char *data =
           reinterpret_cast<const char *>(item_handle->getMemory());
-      memcpy(buf, data, req->val_len);
+      // memcpy(buf, data, req->val_len);
 
       return 0;
     }

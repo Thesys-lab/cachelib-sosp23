@@ -211,7 +211,6 @@ class MMS3FIFO {
 
       // Invalidates this iterator
       void reset() noexcept {
-        printf("reset\n"); 
         // Set index to before first list
         // index_ = kInvalidIndex;
         // Point iterator to first list's rend
@@ -229,7 +228,6 @@ class MMS3FIFO {
 
       // Reset this iterator to the beginning
       void resetToBegin() noexcept {
-        printf("resetToBegin\n");
         // if (!l_.owns_lock()) {
         //   l_.lock();
         // }
