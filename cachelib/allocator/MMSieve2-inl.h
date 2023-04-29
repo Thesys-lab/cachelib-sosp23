@@ -24,8 +24,8 @@ bool areBytesSame(const T& one, const T& two) {
 } // namespace detail
 
 /* Container Interface Implementation */
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-MMLru::Container<T, HookPtr>::Container(serialization::MMLruObject object,
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+MMSieve2::Container<T, HookPtr>::Container(serialization::MMSieve2Object object,
                                         PtrCompressor compressor)
     : compressor_(std::move(compressor)),
       lru_(*object.lru(), compressor_),
@@ -40,8 +40,8 @@ MMLru::Container<T, HookPtr>::Container(serialization::MMLruObject object,
                                    config_.mmReconfigureIntervalSecs.count();
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-bool MMLru::Container<T, HookPtr>::recordAccess(T& node,
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+bool MMSieve2::Container<T, HookPtr>::recordAccess(T& node,
                                                 AccessMode mode) noexcept {
   if ((mode == AccessMode::kWrite && !config_.updateOnWrite) ||
       (mode == AccessMode::kRead && !config_.updateOnRead)) {
@@ -93,17 +93,17 @@ bool MMLru::Container<T, HookPtr>::recordAccess(T& node,
   return false;
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-cachelib::EvictionAgeStat MMLru::Container<T, HookPtr>::getEvictionAgeStat(
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+cachelib::EvictionAgeStat MMSieve2::Container<T, HookPtr>::getEvictionAgeStat(
     uint64_t projectedLength) const noexcept {
   return lruMutex_->lock_combine([this, projectedLength]() {
     return getEvictionAgeStatLocked(projectedLength);
   });
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 cachelib::EvictionAgeStat
-MMLru::Container<T, HookPtr>::getEvictionAgeStatLocked(
+MMSieve2::Container<T, HookPtr>::getEvictionAgeStatLocked(
     uint64_t projectedLength) const noexcept {
   EvictionAgeStat stat{};
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
@@ -121,8 +121,8 @@ MMLru::Container<T, HookPtr>::getEvictionAgeStatLocked(
   return stat;
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-void MMLru::Container<T, HookPtr>::setConfig(const Config& newConfig) {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+void MMSieve2::Container<T, HookPtr>::setConfig(const Config& newConfig) {
   lruMutex_->lock_combine([this, newConfig]() {
     config_ = newConfig;
     if (config_.lruInsertionPointSpec == 0 && insertionPoint_ != nullptr) {
@@ -143,13 +143,13 @@ void MMLru::Container<T, HookPtr>::setConfig(const Config& newConfig) {
   });
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-typename MMLru::Config MMLru::Container<T, HookPtr>::getConfig() const {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+typename MMSieve2::Config MMSieve2::Container<T, HookPtr>::getConfig() const {
   return lruMutex_->lock_combine([this]() { return config_; });
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-void MMLru::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+void MMSieve2::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
   if (config_.lruInsertionPointSpec == 0) {
     return;
   }
@@ -190,8 +190,8 @@ void MMLru::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
   insertionPoint_ = curr;
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-bool MMLru::Container<T, HookPtr>::add(T& node) noexcept {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+bool MMSieve2::Container<T, HookPtr>::add(T& node) noexcept {
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
   return lruMutex_->lock_combine([this, &node, currTime]() {
@@ -211,16 +211,16 @@ bool MMLru::Container<T, HookPtr>::add(T& node) noexcept {
   });
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-typename MMLru::Container<T, HookPtr>::LockedIterator
-MMLru::Container<T, HookPtr>::getEvictionIterator() const noexcept {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+typename MMSieve2::Container<T, HookPtr>::LockedIterator
+MMSieve2::Container<T, HookPtr>::getEvictionIterator() const noexcept {
   LockHolder l(*lruMutex_);
   return LockedIterator{std::move(l), lru_.rbegin()};
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 template <typename F>
-void MMLru::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
+void MMSieve2::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
   if (config_.useCombinedLockForIterators) {
     lruMutex_->lock_combine([this, &fun]() { fun(Iterator{lru_.rbegin()}); });
   } else {
@@ -229,8 +229,8 @@ void MMLru::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
   }
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-void MMLru::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+void MMSieve2::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept {
   // If we are removing the insertion point node, grow tail before we remove
   // so that insertionPoint_ is valid (or nullptr) after removal
   if (&node == insertionPoint_) {
@@ -244,8 +244,8 @@ void MMLru::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept {
   }
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-void MMLru::Container<T, HookPtr>::removeLocked(T& node) {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+void MMSieve2::Container<T, HookPtr>::removeLocked(T& node) {
   ensureNotInsertionPoint(node);
   lru_.remove(node);
   unmarkAccessed(node);
@@ -258,8 +258,8 @@ void MMLru::Container<T, HookPtr>::removeLocked(T& node) {
   return;
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-bool MMLru::Container<T, HookPtr>::remove(T& node) noexcept {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+bool MMSieve2::Container<T, HookPtr>::remove(T& node) noexcept {
   return lruMutex_->lock_combine([this, &node]() {
     if (!node.isInMMContainer()) {
       return false;
@@ -269,16 +269,16 @@ bool MMLru::Container<T, HookPtr>::remove(T& node) noexcept {
   });
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-void MMLru::Container<T, HookPtr>::remove(Iterator& it) noexcept {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+void MMSieve2::Container<T, HookPtr>::remove(Iterator& it) noexcept {
   T& node = *it;
   XDCHECK(node.isInMMContainer());
   ++it;
   removeLocked(node);
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-bool MMLru::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+bool MMSieve2::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   return lruMutex_->lock_combine([this, &oldNode, &newNode]() {
     if (!oldNode.isInMMContainer() || newNode.isInMMContainer()) {
       return false;
@@ -307,10 +307,10 @@ bool MMLru::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   });
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-serialization::MMLruObject MMLru::Container<T, HookPtr>::saveState()
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+serialization::MMSieve2Object MMSieve2::Container<T, HookPtr>::saveState()
     const noexcept {
-  serialization::MMLruConfig configObject;
+  serialization::MMSieve2Config configObject;
   *configObject.lruRefreshTime() =
       lruRefreshTime_.load(std::memory_order_relaxed);
   *configObject.lruRefreshRatio() = config_.lruRefreshRatio;
@@ -319,7 +319,7 @@ serialization::MMLruObject MMLru::Container<T, HookPtr>::saveState()
   *configObject.tryLockUpdate() = config_.tryLockUpdate;
   *configObject.lruInsertionPointSpec() = config_.lruInsertionPointSpec;
 
-  serialization::MMLruObject object;
+  serialization::MMSieve2Object object;
   *object.config() = configObject;
   *object.compressedInsertionPoint() =
       compressor_.compress(insertionPoint_).saveState();
@@ -328,8 +328,8 @@ serialization::MMLruObject MMLru::Container<T, HookPtr>::saveState()
   return object;
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-MMContainerStat MMLru::Container<T, HookPtr>::getStats() const noexcept {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+MMContainerStat MMSieve2::Container<T, HookPtr>::getStats() const noexcept {
   auto stat = lruMutex_->lock_combine([this]() {
     auto* tail = lru_.getTail();
 
@@ -352,8 +352,8 @@ MMContainerStat MMLru::Container<T, HookPtr>::getStats() const noexcept {
           0};
 }
 
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-void MMLru::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+void MMSieve2::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
   if (currTime < nextReconfigureTime_) {
     return;
   }
@@ -370,8 +370,8 @@ void MMLru::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
 }
 
 // Iterator Context Implementation
-template <typename T, MMLru::Hook<T> T::*HookPtr>
-MMLru::Container<T, HookPtr>::LockedIterator::LockedIterator(
+template <typename T, MMSieve2::Hook<T> T::*HookPtr>
+MMSieve2::Container<T, HookPtr>::LockedIterator::LockedIterator(
     LockHolder l, const Iterator& iter) noexcept
     : Iterator(iter), l_(std::move(l)) {}
 

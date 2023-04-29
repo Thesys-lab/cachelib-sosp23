@@ -48,7 +48,7 @@ namespace cachelib {
 // 2. Delayed promotion. Items get promoted at most once in any lru refresh time
 // window. lru refresh time and lru refresh ratio controls this internval
 // length.
-class MMLru {
+class MMSieve2 {
  public:
   // unique identifier per MMType
   static const int kId;
@@ -56,14 +56,14 @@ class MMLru {
   // forward declaration;
   template <typename T>
   using Hook = DListHook<T>;
-  using SerializationType = serialization::MMLruObject;
-  using SerializationConfigType = serialization::MMLruConfig;
-  using SerializationTypeContainer = serialization::MMLruCollection;
+  using SerializationType = serialization::MMSieve2Object;
+  using SerializationConfigType = serialization::MMSieve2Config;
+  using SerializationTypeContainer = serialization::MMSieve2Collection;
 
-  // This is not applicable for MMLru, just for compile of cache allocator
+  // This is not applicable for MMSieve2, just for compile of cache allocator
   enum LruType { NumTypes };
 
-  // Config class for MMLru
+  // Config class for MMSieve2
   struct Config {
     // create from serialized config
     explicit Config(SerializationConfigType configState)
@@ -267,7 +267,7 @@ class MMLru {
               : static_cast<Time>(util::getCurrentTimeSec()) +
                     config_.mmReconfigureIntervalSecs.count();
     }
-    Container(serialization::MMLruObject object, PtrCompressor compressor);
+    Container(serialization::MMSieve2Object object, PtrCompressor compressor);
 
     Container(const Container&) = delete;
     Container& operator=(const Container&) = delete;
@@ -304,7 +304,7 @@ class MMLru {
       }
 
      private:
-      // private because it's easy to misuse and cause deadlock for MMLru
+      // private because it's easy to misuse and cause deadlock for MMSieve2
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
       // create an lru iterator with the lock being held.
@@ -402,7 +402,7 @@ class MMLru {
     // present. Any modification of this object afterwards will result in an
     // invalid, inconsistent state for the serialized data.
     //
-    serialization::MMLruObject saveState() const noexcept;
+    serialization::MMSieve2Object saveState() const noexcept;
 
     // return the stats for this container.
     MMContainerStat getStats() const noexcept;
@@ -490,17 +490,17 @@ class MMLru {
     std::atomic<uint32_t> lruRefreshTime_{};
 
     // Config for this lru.
-    // Write access to the MMLru Config is serialized.
+    // Write access to the MMSieve2 Config is serialized.
     // Reads may be racy.
     Config config_{};
 
     // Max lruFreshTime.
     static constexpr uint32_t kLruRefreshTimeCap{900};
 
-    FRIEND_TEST(MMLruTest, Reconfigure);
+    FRIEND_TEST(MMSieve2Test, Reconfigure);
   };
 };
 } // namespace cachelib
 } // namespace facebook
 
-#include "cachelib/allocator/MMLru-inl.h"
+#include "cachelib/allocator/MMSieve2-inl.h"
