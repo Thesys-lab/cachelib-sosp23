@@ -27,6 +27,7 @@ template class CacheAllocator<TinyLFUCacheTrait>;
 
 template class CacheAllocator<ClockCacheTrait>;
 template class CacheAllocator<SieveCacheTrait>;
+template class CacheAllocator<Sieve2CacheTrait>;
 template class CacheAllocator<SieveBufferedCacheTrait>;
 #endif
 template class CacheAllocator<S3FIFOCacheTrait>;

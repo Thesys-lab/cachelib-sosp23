@@ -32,7 +32,7 @@ namespace cachelib {
 // previous, next information with the last time the item was updated in the
 // LRU.
 template <typename T>
-struct CACHELIB_PACKED_ATTR DListHook {
+struct CACHELIB_PACKED_ATTR DList2Hook {
   using Time = uint32_t;
   using CompressedPtr = typename T::CompressedPtr;
   using PtrCompressor = typename T::PtrCompressor;
@@ -81,25 +81,25 @@ struct CACHELIB_PACKED_ATTR DListHook {
 
 // uses a double linked list to implement an LRU. T must be have a public
 // member of type Hook and HookPtr must point to that.
-template <typename T, DListHook<T> T::*HookPtr>
-class DList {
+template <typename T, DList2Hook<T> T::*HookPtr>
+class DList2 {
  public:
   using CompressedPtr = typename T::CompressedPtr;
   using PtrCompressor = typename T::PtrCompressor;
-  using DListObject = serialization::DListObject;
+  using DList2Object = serialization::DList2Object;
 
-  DList() = default;
-  DList(const DList&) = delete;
-  DList& operator=(const DList&) = delete;
+  DList2() = default;
+  DList2(const DList2&) = delete;
+  DList2& operator=(const DList2&) = delete;
 
-  explicit DList(PtrCompressor compressor) noexcept
+  explicit DList2(PtrCompressor compressor) noexcept
       : compressor_(std::move(compressor)) {}
 
-  // Restore DList from saved state.
+  // Restore DList2 from saved state.
   //
-  // @param object              Save DList object
+  // @param object              Save DList2 object
   // @param compressor          PtrCompressor object
-  DList(const DListObject& object, PtrCompressor compressor)
+  DList2(const DList2Object& object, PtrCompressor compressor)
       : compressor_(std::move(compressor)),
         head_(compressor_.unCompress(CompressedPtr{*object.compressedHead()})),
         tail_(compressor_.unCompress(CompressedPtr{*object.compressedTail()})),
@@ -108,8 +108,8 @@ class DList {
   /**
    * Exports the current state as a thrift object for later restoration.
    */
-  DListObject saveState() const {
-    DListObject state;
+  DList2Object saveState() const {
+    DList2Object state;
     *state.compressedHead() = compressor_.compress(head_).saveState();
     *state.compressedTail() = compressor_.compress(tail_).saveState();
     *state.size() = size_;
@@ -180,8 +180,8 @@ class DList {
    public:
     enum class Direction { FROM_HEAD, FROM_TAIL };
 
-    Iterator(T* p, Direction d, const DList<T, HookPtr>& dlist) noexcept
-        : curr_(p), dir_(d), dlist_(&dlist) {}
+    Iterator(T* p, Direction d, const DList2<T, HookPtr>& DList2) noexcept
+        : curr_(p), dir_(d), DList2_(&DList2) {}
     virtual ~Iterator() = default;
 
     // copyable and movable
@@ -199,7 +199,7 @@ class DList {
     T& operator*() const noexcept { return *curr_; }
 
     bool operator==(const Iterator& other) const noexcept {
-      return dlist_ == other.dlist_ && curr_ == other.curr_ &&
+      return DList2_ == other.DList2_ && curr_ == other.curr_ &&
              dir_ == other.dir_;
     }
 
@@ -208,7 +208,7 @@ class DList {
     }
 
     explicit operator bool() const noexcept {
-      return curr_ != nullptr && dlist_ != nullptr;
+      return curr_ != nullptr && DList2_ != nullptr;
     }
 
     T* get() const noexcept { return curr_; }
@@ -218,7 +218,7 @@ class DList {
 
     // Reset the iterator back to the beginning
     void resetToBegin() noexcept {
-      curr_ = dir_ == Direction::FROM_HEAD ? dlist_->head_ : dlist_->tail_;
+      curr_ = dir_ == Direction::FROM_HEAD ? DList2_->head_ : DList2_->tail_;
     }
 
    protected:
@@ -229,7 +229,7 @@ class DList {
     T* curr_{nullptr};
     // the direction we are iterating.
     Direction dir_{Direction::FROM_HEAD};
-    const DList<T, HookPtr>* dlist_{nullptr};
+    const DList2<T, HookPtr>* DList2_{nullptr};
   };
 
   // provides an iterator starting from the head of the linked list.
@@ -255,10 +255,12 @@ class DList {
   // tail of the linked list
   T* tail_{nullptr};
 
+  T* hand_{nullptr};
+
   // size of the list
   size_t size_{0};
 };
 } // namespace cachelib
 } // namespace facebook
 
-#include "cachelib/allocator/datastruct/DList-inl.h"
+#include "cachelib/allocator/datastruct/DList2-inl.h"

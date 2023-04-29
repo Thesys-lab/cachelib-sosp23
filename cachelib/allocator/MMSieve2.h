@@ -30,7 +30,7 @@
 #include "cachelib/allocator/Cache.h"
 #include "cachelib/allocator/CacheStats.h"
 #include "cachelib/allocator/Util.h"
-#include "cachelib/allocator/datastruct/DList.h"
+#include "cachelib/allocator/datastruct/DList2.h"
 #include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 #include "cachelib/common/CompilerUtils.h"
 #include "cachelib/common/Mutex.h"
@@ -38,16 +38,6 @@
 namespace facebook {
 namespace cachelib {
 
-// CacheLib's modified LRU policy.
-// In classic LRU, the items form a queue according to the last access time.
-// Items are inserted to the head of the queue and removed from the tail of the
-// queue. Items accessed (used) are moved (promoted) to the head of the queue.
-// CacheLib made two variations on top of the classic LRU:
-// 1. Insertion point. The items are inserted into a configured insertion point
-// instead of always to the head.
-// 2. Delayed promotion. Items get promoted at most once in any lru refresh time
-// window. lru refresh time and lru refresh ratio controls this internval
-// length.
 class MMSieve2 {
  public:
   // unique identifier per MMType
@@ -55,7 +45,7 @@ class MMSieve2 {
 
   // forward declaration;
   template <typename T>
-  using Hook = DListHook<T>;
+  using Hook = DList2Hook<T>;
   using SerializationType = serialization::MMSieve2Object;
   using SerializationConfigType = serialization::MMSieve2Config;
   using SerializationTypeContainer = serialization::MMSieve2Collection;
@@ -67,124 +57,100 @@ class MMSieve2 {
   struct Config {
     // create from serialized config
     explicit Config(SerializationConfigType configState)
-        : Config(*configState.lruRefreshTime(),
-                 *configState.lruRefreshRatio(),
-                 *configState.updateOnWrite(),
-                 *configState.updateOnRead(),
-                 *configState.tryLockUpdate(),
-                 static_cast<uint8_t>(*configState.lruInsertionPointSpec())) {}
+        : Config(
+              *configState.sieve2RefreshTime(),
+              *configState.sieve2RefreshRatio(), *configState.updateOnWrite(),
+              *configState.updateOnRead(), *configState.tryLockUpdate(),
+              static_cast<uint8_t>(*configState.sieve2InsertionPointSpec())) {}
 
-    // @param time        the LRU refresh time in seconds.
-    //                    An item will be promoted only once in each lru refresh
-    //                    time depite the number of accesses it gets.
+    // @param time        the sieve2 refresh time in seconds.
+    //                    An item will be promoted only once in each sieve2
+    //                    refresh time depite the number of accesses it gets.
     // @param udpateOnW   whether to promote the item on write
     // @param updateOnR   whether to promote the item on read
     Config(uint32_t time, bool updateOnW, bool updateOnR)
         : Config(time, updateOnW, updateOnR, false, 0) {}
 
-    // @param time        the LRU refresh time in seconds.
-    //                    An item will be promoted only once in each lru refresh
-    //                    time depite the number of accesses it gets.
+    // @param time        the sieve2 refresh time in seconds.
+    //                    An item will be promoted only once in each sieve2
+    //                    refresh time depite the number of accesses it gets.
     // @param udpateOnW   whether to promote the item on write
     // @param updateOnR   whether to promote the item on read
     // @param tryLockU    whether to use a try lock when doing update.
     // @param ipSpec      insertion point spec, which is the inverse power of
     //                    length from the end of the queue. For example, value 1
-    //                    means the insertion point is 1/2 from the end of LRU;
-    //                    value 2 means 1/4 from the end of LRU.
+    //                    means the insertion point is 1/2 from the end of
+    //                    sieve2; value 2 means 1/4 from the end of sieve2.
     Config(uint32_t time, bool updateOnW, bool updateOnR, uint8_t ipSpec)
         : Config(time, updateOnW, updateOnR, false, ipSpec) {}
 
-    Config(uint32_t time,
-           bool updateOnW,
-           bool updateOnR,
-           bool tryLockU,
+    Config(uint32_t time, bool updateOnW, bool updateOnR, bool tryLockU,
            uint8_t ipSpec)
         : Config(time, 0., updateOnW, updateOnR, tryLockU, ipSpec) {}
 
-    // @param time        the LRU refresh time in seconds.
-    //                    An item will be promoted only once in each lru refresh
-    //                    time depite the number of accesses it gets.
-    // @param ratio       the lru refresh ratio. The ratio times the
+    // @param time        the sieve2 refresh time in seconds.
+    //                    An item will be promoted only once in each sieve2
+    //                    refresh time depite the number of accesses it gets.
+    // @param ratio       the sieve2 refresh ratio. The ratio times the
     //                    oldest element's lifetime in warm queue
-    //                    would be the minimum value of LRU refresh time.
+    //                    would be the minimum value of sieve2 refresh time.
     // @param udpateOnW   whether to promote the item on write
     // @param updateOnR   whether to promote the item on read
     // @param tryLockU    whether to use a try lock when doing update.
     // @param ipSpec      insertion point spec, which is the inverse power of
     //                    length from the end of the queue. For example, value 1
-    //                    means the insertion point is 1/2 from the end of LRU;
-    //                    value 2 means 1/4 from the end of LRU.
-    Config(uint32_t time,
-           double ratio,
-           bool updateOnW,
-           bool updateOnR,
-           bool tryLockU,
-           uint8_t ipSpec)
+    //                    means the insertion point is 1/2 from the end of
+    //                    sieve2; value 2 means 1/4 from the end of sieve2.
+    Config(uint32_t time, double ratio, bool updateOnW, bool updateOnR,
+           bool tryLockU, uint8_t ipSpec)
         : Config(time, ratio, updateOnW, updateOnR, tryLockU, ipSpec, 0) {}
 
-    // @param time        the LRU refresh time in seconds.
-    //                    An item will be promoted only once in each lru refresh
-    //                    time depite the number of accesses it gets.
-    // @param ratio       the lru refresh ratio. The ratio times the
+    // @param time        the sieve2 refresh time in seconds.
+    //                    An item will be promoted only once in each sieve2
+    //                    refresh time depite the number of accesses it gets.
+    // @param ratio       the sieve2 refresh ratio. The ratio times the
     //                    oldest element's lifetime in warm queue
-    //                    would be the minimum value of LRU refresh time.
+    //                    would be the minimum value of sieve2 refresh time.
     // @param udpateOnW   whether to promote the item on write
     // @param updateOnR   whether to promote the item on read
     // @param tryLockU    whether to use a try lock when doing update.
     // @param ipSpec      insertion point spec, which is the inverse power of
     //                    length from the end of the queue. For example, value 1
-    //                    means the insertion point is 1/2 from the end of LRU;
-    //                    value 2 means 1/4 from the end of LRU.
-    // @param mmReconfigureInterval   Time interval for recalculating lru
+    //                    means the insertion point is 1/2 from the end of
+    //                    sieve2; value 2 means 1/4 from the end of sieve2.
+    // @param mmReconfigureInterval   Time interval for recalculating sieve2
     //                                refresh time according to the ratio.
-    Config(uint32_t time,
-           double ratio,
-           bool updateOnW,
-           bool updateOnR,
-           bool tryLockU,
-           uint8_t ipSpec,
-           uint32_t mmReconfigureInterval)
-        : Config(time,
-                 ratio,
-                 updateOnW,
-                 updateOnR,
-                 tryLockU,
-                 ipSpec,
-                 mmReconfigureInterval,
-                 false) {}
+    Config(uint32_t time, double ratio, bool updateOnW, bool updateOnR,
+           bool tryLockU, uint8_t ipSpec, uint32_t mmReconfigureInterval)
+        : Config(time, ratio, updateOnW, updateOnR, tryLockU, ipSpec,
+                 mmReconfigureInterval, false) {}
 
-    // @param time        the LRU refresh time in seconds.
-    //                    An item will be promoted only once in each lru refresh
-    //                    time depite the number of accesses it gets.
-    // @param ratio       the lru refresh ratio. The ratio times the
+    // @param time        the sieve2 refresh time in seconds.
+    //                    An item will be promoted only once in each sieve2
+    //                    refresh time depite the number of accesses it gets.
+    // @param ratio       the sieve2 refresh ratio. The ratio times the
     //                    oldest element's lifetime in warm queue
-    //                    would be the minimum value of LRU refresh time.
+    //                    would be the minimum value of sieve2 refresh time.
     // @param udpateOnW   whether to promote the item on write
     // @param updateOnR   whether to promote the item on read
     // @param tryLockU    whether to use a try lock when doing update.
     // @param ipSpec      insertion point spec, which is the inverse power of
     //                    length from the end of the queue. For example, value 1
-    //                    means the insertion point is 1/2 from the end of LRU;
-    //                    value 2 means 1/4 from the end of LRU.
-    // @param mmReconfigureInterval   Time interval for recalculating lru
+    //                    means the insertion point is 1/2 from the end of
+    //                    sieve2; value 2 means 1/4 from the end of sieve2.
+    // @param mmReconfigureInterval   Time interval for recalculating sieve2
     //                                refresh time according to the ratio.
     // useCombinedLockForIterators    Whether to use combined locking for
     //                                withEvictionIterator
-    Config(uint32_t time,
-           double ratio,
-           bool updateOnW,
-           bool updateOnR,
-           bool tryLockU,
-           uint8_t ipSpec,
-           uint32_t mmReconfigureInterval,
+    Config(uint32_t time, double ratio, bool updateOnW, bool updateOnR,
+           bool tryLockU, uint8_t ipSpec, uint32_t mmReconfigureInterval,
            bool useCombinedLockForIterators)
-        : defaultLruRefreshTime(time),
-          lruRefreshRatio(ratio),
+        : defaultsieve2RefreshTime(time),
+          sieve2RefreshRatio(ratio),
           updateOnWrite(updateOnW),
           updateOnRead(updateOnR),
           tryLockUpdate(tryLockU),
-          lruInsertionPointSpec(ipSpec),
+          sieve2InsertionPointSpec(ipSpec),
           mmReconfigureIntervalSecs(
               std::chrono::seconds(mmReconfigureInterval)),
           useCombinedLockForIterators(useCombinedLockForIterators) {}
@@ -201,34 +167,34 @@ class MMSieve2 {
 
     // threshold value in seconds to compare with a node's update time to
     // determine if we need to update the position of the node in the linked
-    // list. By default this is 60s to reduce the contention on the lru lock.
-    uint32_t defaultLruRefreshTime{60};
-    uint32_t lruRefreshTime{defaultLruRefreshTime};
+    // list. By default this is 60s to reduce the contention on the sieve2 lock.
+    uint32_t defaultsieve2RefreshTime{60};
+    uint32_t sieve2RefreshTime{defaultsieve2RefreshTime};
 
-    // ratio of LRU refresh time to the tail age. If a refresh time computed
-    // according to this ratio is larger than lruRefreshtime, we will adopt
-    // this one instead of the lruRefreshTime set.
-    double lruRefreshRatio{0.};
+    // ratio of sieve2 refresh time to the tail age. If a refresh time computed
+    // according to this ratio is larger than sieve2Refreshtime, we will adopt
+    // this one instead of the sieve2RefreshTime set.
+    double sieve2RefreshRatio{0.};
 
-    // whether the lru needs to be updated on writes for recordAccess. If
+    // whether the sieve2 needs to be updated on writes for recordAccess. If
     // false, accessing the cache for writes does not promote the cached item
-    // to the head of the lru.
+    // to the head of the sieve2.
     bool updateOnWrite{false};
 
-    // whether the lru needs to be updated on reads for recordAccess. If
+    // whether the sieve2 needs to be updated on reads for recordAccess. If
     // false, accessing the cache for reads does not promote the cached item
-    // to the head of the lru.
+    // to the head of the sieve2.
     bool updateOnRead{true};
 
-    // whether to tryLock or lock the lru lock when attempting promotion on
+    // whether to tryLock or lock the sieve2 lock when attempting promotion on
     // access. If set, and tryLock fails, access will not result in promotion.
     bool tryLockUpdate{false};
 
-    // By default insertions happen at the head of the LRU. If we need
-    // insertions at the middle of lru we can adjust this to be a non-zero.
-    // Ex: lruInsertionPointSpec = 1, we insert at the middle (1/2 from end)
-    //     lruInsertionPointSpec = 2, we insert at a point 1/4th from tail
-    uint8_t lruInsertionPointSpec{0};
+    // By default insertions happen at the head of the sieve2. If we need
+    // insertions at the middle of sieve2 we can adjust this to be a non-zero.
+    // Ex: sieve2InsertionPointSpec = 1, we insert at the middle (1/2 from end)
+    //     sieve2InsertionPointSpec = 2, we insert at a point 1/4th from tail
+    uint8_t sieve2InsertionPointSpec{0};
 
     // Minimum interval between reconfigurations. If 0, reconfigure is never
     // called.
@@ -240,13 +206,13 @@ class MMSieve2 {
 
   // The container object which can be used to keep track of objects of type
   // T. T must have a public member of type Hook. This object is wrapper
-  // around DList, is thread safe and can be accessed from multiple threads.
-  // The current implementation models an LRU using the above DList
+  // around DList2, is thread safe and can be accessed from multiple threads.
+  // The current implementation models an sieve2 using the above DList2
   // implementation.
   template <typename T, Hook<T> T::*HookPtr>
   struct Container {
    private:
-    using LruList = DList<T, HookPtr>;
+    using sieve2List = DList2<T, HookPtr>;
     using Mutex = folly::DistributedMutex;
     using LockHolder = std::unique_lock<Mutex>;
     using PtrCompressor = typename T::PtrCompressor;
@@ -258,9 +224,9 @@ class MMSieve2 {
     Container() = default;
     Container(Config c, PtrCompressor compressor)
         : compressor_(std::move(compressor)),
-          lru_(compressor_),
+          sieve2_(compressor_),
           config_(std::move(c)) {
-      lruRefreshTime_ = config_.lruRefreshTime;
+      sieve2RefreshTime_ = config_.sieve2RefreshTime;
       nextReconfigureTime_ =
           config_.mmReconfigureIntervalSecs.count() == 0
               ? std::numeric_limits<Time>::max()
@@ -272,11 +238,11 @@ class MMSieve2 {
     Container(const Container&) = delete;
     Container& operator=(const Container&) = delete;
 
-    using Iterator = typename LruList::Iterator;
+    using Iterator = typename sieve2List::Iterator;
 
     // context for iterating the MM container. At any given point of time,
-    // there can be only one iterator active since we need to lock the LRU for
-    // iteration. we can support multiple iterators at same time, by using a
+    // there can be only one iterator active since we need to lock the sieve2
+    // for iteration. we can support multiple iterators at same time, by using a
     // shared ptr in the context for the lock holder in the future.
     class LockedIterator : public Iterator {
      public:
@@ -307,7 +273,7 @@ class MMSieve2 {
       // private because it's easy to misuse and cause deadlock for MMSieve2
       LockedIterator& operator=(LockedIterator&&) noexcept = default;
 
-      // create an lru iterator with the lock being held.
+      // create an sieve2 iterator with the lock being held.
       LockedIterator(LockHolder l, const Iterator& iter) noexcept;
 
       // only the container can create iterators
@@ -318,20 +284,20 @@ class MMSieve2 {
     };
 
     // records the information that the node was accessed. This could bump up
-    // the node to the head of the lru depending on the time when the node was
-    // last updated in lru and the kLruRefreshTime. If the node was moved to
-    // the head in the lru, the node's updateTime will be updated
+    // the node to the head of the sieve2 depending on the time when the node
+    // was last updated in sieve2 and the ksieve2RefreshTime. If the node was
+    // moved to the head in the sieve2, the node's updateTime will be updated
     // accordingly.
     //
     // @param node  node that we want to mark as relevant/accessed
     // @param mode  the mode for the access operation.
     //
     // @return      True if the information is recorded and bumped the node
-    //              to the head of the lru, returns false otherwise
+    //              to the head of the sieve2, returns false otherwise
     bool recordAccess(T& node, AccessMode mode) noexcept;
 
     // adds the given node into the container and marks it as being present in
-    // the container. The node is added to the head of the lru.
+    // the container. The node is added to the head of the sieve2.
     //
     // @param node  The node to be added to the container.
     // @return  True if the node was successfully added to the container. False
@@ -339,7 +305,8 @@ class MMSieve2 {
     //          is unchanged.
     bool add(T& node) noexcept;
 
-    // removes the node from the lru and sets it previous and next to nullptr.
+    // removes the node from the sieve2 and sets it previous and next to
+    // nullptr.
     //
     // @param node  The node to be removed from the container.
     // @return  True if the node was successfully removed from the container.
@@ -390,13 +357,13 @@ class MMSieve2 {
 
     // returns the number of elements in the container
     size_t size() const noexcept {
-      return lruMutex_->lock_combine([this]() { return lru_.size(); });
+      return sieve2Mutex_->lock_combine([this]() { return sieve2_.size(); });
     }
 
     // Returns the eviction age stats. See CacheStats.h for details
     EvictionAgeStat getEvictionAgeStat(uint64_t projectedLength) const noexcept;
 
-    // for saving the state of the lru
+    // for saving the state of the sieve2
     //
     // precondition:  serialization must happen without any reader or writer
     // present. Any modification of this object afterwards will result in an
@@ -429,17 +396,17 @@ class MMSieve2 {
     // adjust it accordingly.
     void ensureNotInsertionPoint(T& node) noexcept;
 
-    // update the lru insertion point after doing an insert or removal.
+    // update the sieve2 insertion point after doing an insert or removal.
     // We need to ensure the insertionPoint_ is set to the correct node
     // to maintain the tailSize_, for the next insertion.
-    void updateLruInsertionPoint() noexcept;
+    void updatesieve2InsertionPoint() noexcept;
 
-    // remove node from lru and adjust insertion points
+    // remove node from sieve2 and adjust insertion points
     // @param node          node to remove
     void removeLocked(T& node);
 
     // Bit MM_BIT_0 is used to record if the item is in tail. This
-    // is used to implement LRU insertion points
+    // is used to implement sieve2 insertion points
     void markTail(T& node) noexcept {
       node.template setFlag<RefFlags::kMMFlag0>();
     }
@@ -467,15 +434,15 @@ class MMSieve2 {
       return node.template isFlagSet<RefFlags::kMMFlag1>();
     }
 
-    // protects all operations on the lru. We never really just read the state
-    // of the LRU. Hence we dont really require a RW mutex at this point of
-    // time.
-    mutable folly::cacheline_aligned<Mutex> lruMutex_;
+    // protects all operations on the sieve2. We never really just read the
+    // state of the sieve2. Hence we dont really require a RW mutex at this
+    // point of time.
+    mutable folly::cacheline_aligned<Mutex> sieve2Mutex_;
 
     const PtrCompressor compressor_{};
 
-    // the lru
-    LruList lru_{};
+    // the sieve2
+    sieve2List sieve2_{};
 
     // insertion point
     T* insertionPoint_{nullptr};
@@ -487,20 +454,20 @@ class MMSieve2 {
     std::atomic<Time> nextReconfigureTime_{};
 
     // How often to promote an item in the eviction queue.
-    std::atomic<uint32_t> lruRefreshTime_{};
+    std::atomic<uint32_t> sieve2RefreshTime_{};
 
-    // Config for this lru.
+    // Config for this sieve2.
     // Write access to the MMSieve2 Config is serialized.
     // Reads may be racy.
     Config config_{};
 
-    // Max lruFreshTime.
-    static constexpr uint32_t kLruRefreshTimeCap{900};
+    // Max sieve2FreshTime.
+    static constexpr uint32_t ksieve2RefreshTimeCap{900};
 
     FRIEND_TEST(MMSieve2Test, Reconfigure);
   };
 };
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook
 
 #include "cachelib/allocator/MMSieve2-inl.h"

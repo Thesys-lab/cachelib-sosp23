@@ -83,6 +83,31 @@ struct MMLruCollection {
   1: required map<i32, map<i32, MMLruObject>> pools,
 }
 
+struct MMSieve2Config {
+  1: required i32 sieve2RefreshTime,
+  2: required bool updateOnWrite,
+  3: required i32 sieve2InsertionPointSpec,
+  4: bool updateOnRead = true,
+  5: bool tryLockUpdate = false,
+  6: double sieve2RefreshRatio = 0.0,
+}
+
+struct MMSieve2Object {
+  1: required MMSieve2Config config,
+
+  // number of evictions for this MM object.
+  5: i64 evictions = 0,
+
+  6: required i64 insertionPoint,
+  7: required i64 tailSize,
+  8: required DList2Object sieve2,
+  9: required i64 compressedInsertionPoint,
+}
+
+struct MMSieve2Collection {
+  1: required map<i32, map<i32, MMSieve2Object>> pools,
+}
+
 struct MM2QConfig {
   1: required i32 lruRefreshTime,
   2: required bool updateOnWrite,

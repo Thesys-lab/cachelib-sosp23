@@ -24,6 +24,7 @@
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
 #include "cachelib/allocator/MMSieve.h"
+#include "cachelib/allocator/MMSieve2.h"
 #include "cachelib/allocator/MMSieveBuffered.h"
 #endif
 #include "cachelib/allocator/MMS3FIFO.h"
@@ -72,6 +73,12 @@ struct ClockCacheTrait {
 
 struct SieveCacheTrait {
   using MMType = MMSieve;
+  using AccessType = ChainedHashTable;
+  using AccessTypeLocks = SharedMutexBuckets;
+};
+
+struct Sieve2CacheTrait {
+  using MMType = MMSieve2;
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
 };

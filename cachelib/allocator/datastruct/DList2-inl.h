@@ -18,8 +18,8 @@ namespace facebook {
 namespace cachelib {
 
 /* Linked list implemenation */
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::linkAtHead(T& node) noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::linkAtHead(T& node) noexcept {
   XDCHECK_NE(reinterpret_cast<uintptr_t>(&node),
              reinterpret_cast<uintptr_t>(head_));
 
@@ -36,8 +36,8 @@ void DList<T, HookPtr>::linkAtHead(T& node) noexcept {
   size_++;
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::linkAtTail(T& node) noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::linkAtTail(T& node) noexcept {
   XDCHECK_NE(reinterpret_cast<uintptr_t>(&node),
              reinterpret_cast<uintptr_t>(tail_));
 
@@ -54,8 +54,8 @@ void DList<T, HookPtr>::linkAtTail(T& node) noexcept {
   size_++;
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::insertBefore(T& nextNode, T& node) noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::insertBefore(T& nextNode, T& node) noexcept {
   XDCHECK_NE(reinterpret_cast<uintptr_t>(&nextNode),
              reinterpret_cast<uintptr_t>(&node));
   XDCHECK(getNext(node) == nullptr);
@@ -78,8 +78,8 @@ void DList<T, HookPtr>::insertBefore(T& nextNode, T& node) noexcept {
   size_++;
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::unlink(const T& node) noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::unlink(const T& node) noexcept {
   XDCHECK_GT(size_, 0u);
   // fix head_ and tail_ if the node is either of that.
   auto* const prev = getPrev(node);
@@ -102,15 +102,15 @@ void DList<T, HookPtr>::unlink(const T& node) noexcept {
   size_--;
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::remove(T& node) noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::remove(T& node) noexcept {
   unlink(node);
   setNext(node, nullptr);
   setPrev(node, nullptr);
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   // Update head and tail links if needed
   if (&oldNode == head_) {
     head_ = &newNode;
@@ -138,8 +138,8 @@ void DList<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
   setNext(oldNode, nullptr);
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::moveToHead(T& node) noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::moveToHead(T& node) noexcept {
   if (&node == head_) {
     return;
   }
@@ -148,27 +148,27 @@ void DList<T, HookPtr>::moveToHead(T& node) noexcept {
 }
 
 /* Iterator Implementation */
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::Iterator::goForward() noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::Iterator::goForward() noexcept {
   if (dir_ == Direction::FROM_TAIL) {
-    curr_ = dlist_->getPrev(*curr_);
+    curr_ = DList2_->getPrev(*curr_);
   } else {
-    curr_ = dlist_->getNext(*curr_);
+    curr_ = DList2_->getNext(*curr_);
   }
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-void DList<T, HookPtr>::Iterator::goBackward() noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+void DList2<T, HookPtr>::Iterator::goBackward() noexcept {
   if (dir_ == Direction::FROM_TAIL) {
-    curr_ = dlist_->getNext(*curr_);
+    curr_ = DList2_->getNext(*curr_);
   } else {
-    curr_ = dlist_->getPrev(*curr_);
+    curr_ = DList2_->getPrev(*curr_);
   }
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-typename DList<T, HookPtr>::Iterator&
-DList<T, HookPtr>::Iterator::operator++() noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+typename DList2<T, HookPtr>::Iterator&
+DList2<T, HookPtr>::Iterator::operator++() noexcept {
   XDCHECK(curr_ != nullptr);
   if (curr_ != nullptr) {
     goForward();
@@ -176,9 +176,9 @@ DList<T, HookPtr>::Iterator::operator++() noexcept {
   return *this;
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-typename DList<T, HookPtr>::Iterator&
-DList<T, HookPtr>::Iterator::operator--() noexcept {
+template <typename T, DList2Hook<T> T::*HookPtr>
+typename DList2<T, HookPtr>::Iterator&
+DList2<T, HookPtr>::Iterator::operator--() noexcept {
   XDCHECK(curr_ != nullptr);
   if (curr_ != nullptr) {
     goBackward();
@@ -186,29 +186,29 @@ DList<T, HookPtr>::Iterator::operator--() noexcept {
   return *this;
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-typename DList<T, HookPtr>::Iterator DList<T, HookPtr>::begin() const noexcept {
-  return DList<T, HookPtr>::Iterator(head_, Iterator::Direction::FROM_HEAD,
+template <typename T, DList2Hook<T> T::*HookPtr>
+typename DList2<T, HookPtr>::Iterator DList2<T, HookPtr>::begin() const noexcept {
+  return DList2<T, HookPtr>::Iterator(head_, Iterator::Direction::FROM_HEAD,
                                      *this);
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-typename DList<T, HookPtr>::Iterator DList<T, HookPtr>::rbegin()
+template <typename T, DList2Hook<T> T::*HookPtr>
+typename DList2<T, HookPtr>::Iterator DList2<T, HookPtr>::rbegin()
     const noexcept {
-  return DList<T, HookPtr>::Iterator(tail_, Iterator::Direction::FROM_TAIL,
+  return DList2<T, HookPtr>::Iterator(tail_, Iterator::Direction::FROM_TAIL,
                                      *this);
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-typename DList<T, HookPtr>::Iterator DList<T, HookPtr>::end() const noexcept {
-  return DList<T, HookPtr>::Iterator(nullptr, Iterator::Direction::FROM_HEAD,
+template <typename T, DList2Hook<T> T::*HookPtr>
+typename DList2<T, HookPtr>::Iterator DList2<T, HookPtr>::end() const noexcept {
+  return DList2<T, HookPtr>::Iterator(nullptr, Iterator::Direction::FROM_HEAD,
                                      *this);
 }
 
-template <typename T, DListHook<T> T::*HookPtr>
-typename DList<T, HookPtr>::Iterator DList<T, HookPtr>::rend() const noexcept {
-  return DList<T, HookPtr>::Iterator(nullptr, Iterator::Direction::FROM_TAIL,
+template <typename T, DList2Hook<T> T::*HookPtr>
+typename DList2<T, HookPtr>::Iterator DList2<T, HookPtr>::rend() const noexcept {
+  return DList2<T, HookPtr>::Iterator(nullptr, Iterator::Direction::FROM_TAIL,
                                      *this);
 }
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook

@@ -95,7 +95,7 @@ class ObjectCache;
 
 template <typename AllocatorT>
 class ObjectCacheBase;
-} // namespace objcache2
+}  // namespace objcache2
 
 namespace cachebench {
 template <typename Allocator>
@@ -103,7 +103,7 @@ class Cache;
 namespace tests {
 class CacheTest;
 }
-} // namespace cachebench
+}  // namespace cachebench
 
 namespace tests {
 template <typename AllocatorT>
@@ -130,7 +130,7 @@ class NvmAdmissionPolicyTest;
 
 class CacheAllocatorTestWrapper;
 class PersistenceCache;
-} // namespace tests
+}  // namespace tests
 
 namespace objcache {
 template <typename CacheDescriptor, typename AllocatorRes>
@@ -143,8 +143,8 @@ namespace test {
   namespace ::GET_CLASS_NAME(test_case_name, test_name)
 
 class GET_CLASS_NAME(ObjectCache, ObjectHandleInvalid);
-} // namespace test
-} // namespace objcache
+}  // namespace test
+}  // namespace objcache
 
 // CacheAllocator can provide an interface to make Keyed Allocations(Item) and
 // takes two templated types that control how the allocation is
@@ -228,13 +228,9 @@ class CacheAllocator : public CacheBase {
     SampleItem(folly::IOBuf&& iobuf, const AllocInfo& allocInfo, bool fromNvm)
         : iobuf_{std::move(iobuf)}, allocInfo_{allocInfo}, fromNvm_{fromNvm} {}
 
-    SampleItem(folly::IOBuf&& iobuf,
-               PoolId poolId,
-               ClassId classId,
-               size_t allocSize,
-               bool fromNvm)
-        : SampleItem(std::move(iobuf),
-                     AllocInfo{poolId, classId, allocSize},
+    SampleItem(folly::IOBuf&& iobuf, PoolId poolId, ClassId classId,
+               size_t allocSize, bool fromNvm)
+        : SampleItem(std::move(iobuf), AllocInfo{poolId, classId, allocSize},
                      fromNvm) {}
 
     const Item* operator->() const noexcept { return get(); }
@@ -270,19 +266,15 @@ class CacheAllocator : public CacheBase {
   };
 
   struct DestructorData {
-    DestructorData(DestructorContext ctx,
-                   Item& it,
-                   folly::Range<ChainedItemIter> iter,
-                   PoolId id)
+    DestructorData(DestructorContext ctx, Item& it,
+                   folly::Range<ChainedItemIter> iter, PoolId id)
         : context(ctx), item(it), chainedAllocs(iter), pool(id) {}
 
     // helps to convert RemoveContext to DestructorContext,
     // the context for RemoveCB is re-used to create DestructorData,
     // this can be removed if RemoveCB is dropped.
-    DestructorData(RemoveContext ctx,
-                   Item& it,
-                   folly::Range<ChainedItemIter> iter,
-                   PoolId id)
+    DestructorData(RemoveContext ctx, Item& it,
+                   folly::Range<ChainedItemIter> iter, PoolId id)
         : item(it), chainedAllocs(iter), pool(id) {
       if (ctx == RemoveContext::kEviction) {
         context = DestructorContext::kEvictedFromRAM;
@@ -406,10 +398,7 @@ class CacheAllocator : public CacheBase {
   // @throw   std::invalid_argument if the poolId is invalid or the size
   //          requested is invalid or if the key is invalid(key.size() == 0 or
   //          key.size() > 255)
-  WriteHandle allocate(PoolId id,
-                       Key key,
-                       uint32_t size,
-                       uint32_t ttlSecs = 0,
+  WriteHandle allocate(PoolId id, Key key, uint32_t size, uint32_t ttlSecs = 0,
                        uint32_t creationTime = 0);
 
   // Allocate a chained item
@@ -474,8 +463,7 @@ class CacheAllocator : public CacheBase {
   // @return  handle to the oldItem on return.
   //
   // @throw std::invalid_argument if any of the pre-conditions fails
-  WriteHandle replaceChainedItem(Item& oldItem,
-                                 WriteHandle newItem,
+  WriteHandle replaceChainedItem(Item& oldItem, WriteHandle newItem,
                                  Item& parent);
 
   // Transfers the ownership of the chain from the current parent to the new
@@ -792,8 +780,7 @@ class CacheAllocator : public CacheBase {
   // @throw   std::invalid_argument if the size is invalid or there is not
   //          enough space for creating the pool.
   //          std::logic_error if we have run out of pools.
-  PoolId addPool(folly::StringPiece name,
-                 size_t size,
+  PoolId addPool(folly::StringPiece name, size_t size,
                  const std::set<uint32_t>& allocSizes = {},
                  MMConfig config = {},
                  std::shared_ptr<RebalanceStrategy> rebalanceStrategy = nullptr,
@@ -898,8 +885,7 @@ class CacheAllocator : public CacheBase {
   //                                if there is no sufficient space to create
   //                                a compact cache.
   template <typename CCacheT, typename... Args>
-  CCacheT* addCompactCache(folly::StringPiece name,
-                           size_t size,
+  CCacheT* addCompactCache(folly::StringPiece name, size_t size,
                            Args&&... args);
 
   // Attach a compact cache to the given pool after warm roll
@@ -930,13 +916,13 @@ class CacheAllocator : public CacheBase {
 
   // The enum value that indicates the CacheAllocator's shutdown status.
   enum class ShutDownStatus {
-    kSuccess = 0, // Successfully persisted the DRAM cache, and the NvmCache if
-                  // enabled.
-    kSavedOnlyDRAM, // Successfully persisted the DRAM cache only; NvmCache is
-                    // enabled but failed to persist it.
-    kSavedOnlyNvmCache, // Successfully persisted the enabled NvM cache only;
-                        // Failed to persist DRAM cache.
-    kFailed // Failed to persist both the DRAM cache and the enabled NvmCache.
+    kSuccess = 0,  // Successfully persisted the DRAM cache, and the NvmCache if
+                   // enabled.
+    kSavedOnlyDRAM,  // Successfully persisted the DRAM cache only; NvmCache is
+                     // enabled but failed to persist it.
+    kSavedOnlyNvmCache,  // Successfully persisted the enabled NvM cache only;
+                         // Failed to persist DRAM cache.
+    kFailed  // Failed to persist both the DRAM cache and the enabled NvmCache.
   };
 
   // Persists the state of the cache allocator. On a successful shutdown,
@@ -1220,8 +1206,7 @@ class CacheAllocator : public CacheBase {
   // Dump the last N items for an evictable MM Container
   // @return  vector of the string of each item. Empty if nothing in LRU
   // @throw  std::invalid_argument if <pid, cid> does not exist
-  std::vector<std::string> dumpEvictionIterator(PoolId pid,
-                                                ClassId cid,
+  std::vector<std::string> dumpEvictionIterator(PoolId pid, ClassId cid,
                                                 size_t numItems = 10);
 
   // returns the current count of the active handles that are handed out
@@ -1350,12 +1335,11 @@ class CacheAllocator : public CacheBase {
   // @throw   runtime_error if _it_ has pending refs or is not a regular item.
   //          runtime_error if parent->chain is broken
   enum class ReleaseRes {
-    kRecycled,    // _it_ was released and _toRecycle_ was recycled
-    kNotRecycled, // _it_ was released and _toRecycle_ was not recycled
-    kReleased,    // toRecycle == nullptr and it was released
+    kRecycled,     // _it_ was released and _toRecycle_ was recycled
+    kNotRecycled,  // _it_ was released and _toRecycle_ was not recycled
+    kReleased,     // toRecycle == nullptr and it was released
   };
-  ReleaseRes releaseBackToAllocator(Item& it,
-                                    RemoveContext ctx,
+  ReleaseRes releaseBackToAllocator(Item& it, RemoveContext ctx,
                                     bool nascent = false,
                                     const Item* toRecycle = nullptr);
 
@@ -1416,11 +1400,8 @@ class CacheAllocator : public CacheBase {
   // @throw   std::invalid_argument if the poolId is invalid or the size
   //          requested is invalid or if the key is invalid(key.size() == 0 or
   //          key.size() > 255)
-  WriteHandle allocateInternal(PoolId id,
-                               Key key,
-                               uint32_t size,
-                               uint32_t creationTime,
-                               uint32_t expiryTime);
+  WriteHandle allocateInternal(PoolId id, Key key, uint32_t size,
+                               uint32_t creationTime, uint32_t expiryTime);
 
   // Allocate a chained item
   //
@@ -1571,8 +1552,7 @@ class CacheAllocator : public CacheBase {
   // @param parent   the parent for the chain
   //
   // @return handle to the oldItem
-  WriteHandle replaceChainedItemLocked(Item& oldItem,
-                                       WriteHandle newItemHdl,
+  WriteHandle replaceChainedItemLocked(Item& oldItem, WriteHandle newItemHdl,
                                        const Item& parent);
 
   // Insert an item into MM container. The caller must hold a valid handle for
@@ -1646,11 +1626,8 @@ class CacheAllocator : public CacheBase {
   //                         not enable, or removeFromNvm is false
   // @param removeFromNvm    if true clear key from nvm
   // @param recordApiEvent   should we record API event for this operation.
-  RemoveRes removeImpl(HashedKey hk,
-                       Item& it,
-                       DeleteTombStoneGuard tombstone,
-                       bool removeFromNvm = true,
-                       bool recordApiEvent = true);
+  RemoveRes removeImpl(HashedKey hk, Item& it, DeleteTombStoneGuard tombstone,
+                       bool removeFromNvm = true, bool recordApiEvent = true);
 
   // Implementation to find a suitable eviction from the container. The
   // two parameters together identify a single container.
@@ -1717,9 +1694,7 @@ class CacheAllocator : public CacheBase {
   // @throw std::invalid_argument if the hint is invalid or if the pid or cid
   //        is invalid.
   // @throw std::runtime_error if fail to release a slab due to internal error
-  void releaseSlab(PoolId pid,
-                   ClassId cid,
-                   SlabReleaseMode mode,
+  void releaseSlab(PoolId pid, ClassId cid, SlabReleaseMode mode,
                    const void* hint = nullptr) final;
 
   // Releasing a slab from this allocation class id and pool id. The release
@@ -1745,19 +1720,15 @@ class CacheAllocator : public CacheBase {
   //        also specified. Receiver class id can only be specified if the mode
   //        is set to kRebalance.
   // @throw std::runtime_error if fail to release a slab due to internal error
-  void releaseSlab(PoolId pid,
-                   ClassId victim,
-                   ClassId receiver,
-                   SlabReleaseMode mode,
-                   const void* hint = nullptr) final;
+  void releaseSlab(PoolId pid, ClassId victim, ClassId receiver,
+                   SlabReleaseMode mode, const void* hint = nullptr) final;
 
   // @param releaseContext  slab release context
   void releaseSlabImpl(const SlabReleaseContext& releaseContext);
 
   // @return  true when successfully marked as moving,
   //          fasle when this item has already been freed
-  bool markExclusiveForSlabRelease(const SlabReleaseContext& ctx,
-                                   void* alloc,
+  bool markExclusiveForSlabRelease(const SlabReleaseContext& ctx, void* alloc,
                                    util::Throttler& throttler);
 
   // "Move" (by copying) the content in this item to another memory
@@ -1770,8 +1741,7 @@ class CacheAllocator : public CacheBase {
   //
   // @return    true  if the item has been moved
   //            false if we have exhausted moving attempts
-  bool moveForSlabRelease(const SlabReleaseContext& ctx,
-                          Item& item,
+  bool moveForSlabRelease(const SlabReleaseContext& ctx, Item& item,
                           util::Throttler& throttler);
 
   // "Move" (by copying) the content in this item to another memory
@@ -1790,8 +1760,7 @@ class CacheAllocator : public CacheBase {
   // @param ctx         slab release context
   // @param item        old item to be moved elsewhere
   // @param throttler   slow this function down as not to take too much cpu
-  void evictForSlabRelease(const SlabReleaseContext& ctx,
-                           Item& item,
+  void evictForSlabRelease(const SlabReleaseContext& ctx, Item& item,
                            util::Throttler& throttler);
 
   // Helper function to evict a normal item for slab release
@@ -1847,8 +1816,7 @@ class CacheAllocator : public CacheBase {
         config.defaultAllocSizes.empty()
             ? util::generateAllocSizes(
                   config.allocationClassSizeFactor,
-                  config.maxAllocationClassSize,
-                  config.minAllocationClassSize,
+                  config.maxAllocationClassSize, config.minAllocationClassSize,
                   config.reduceFragmentationInAllocationClass)
             : config.defaultAllocSizes,
         config.enableZeroedSlabAllocs, config.disableFullCoredump,
@@ -1857,15 +1825,12 @@ class CacheAllocator : public CacheBase {
 
   // starts one of the cache workers passing the current instance and the args
   template <typename T, typename... Args>
-  bool startNewWorker(folly::StringPiece name,
-                      std::unique_ptr<T>& worker,
-                      std::chrono::milliseconds interval,
-                      Args&&... args);
+  bool startNewWorker(folly::StringPiece name, std::unique_ptr<T>& worker,
+                      std::chrono::milliseconds interval, Args&&... args);
 
   // stops one of the workers belonging to this instance.
   template <typename T>
-  bool stopWorker(folly::StringPiece name,
-                  std::unique_ptr<T>& worker,
+  bool stopWorker(folly::StringPiece name, std::unique_ptr<T>& worker,
                   std::chrono::seconds timeout = std::chrono::seconds{0});
 
   ShmSegmentOpts createShmCacheOpts();
@@ -2138,12 +2103,11 @@ class CacheAllocator : public CacheBase {
   // objectCache
   template <typename CacheDescriptor, typename AllocatorRes>
   friend class facebook::cachelib::objcache::ObjectCache;
-  friend class GET_DECORATED_CLASS_NAME(objcache::test,
-                                        ObjectCache,
+  friend class GET_DECORATED_CLASS_NAME(objcache::test, ObjectCache,
                                         ObjectHandleInvalid);
 };
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook
 #include "cachelib/allocator/CacheAllocator-inl.h"
 
 namespace facebook {
@@ -2158,8 +2122,9 @@ extern template class CacheAllocator<Lru2QCacheTrait>;
 extern template class CacheAllocator<TinyLFUCacheTrait>;
 
 extern template class CacheAllocator<ClockCacheTrait>;
-extern template class CacheAllocator<SieveBufferedCacheTrait>;
 extern template class CacheAllocator<SieveCacheTrait>;
+extern template class CacheAllocator<Sieve2CacheTrait>;
+extern template class CacheAllocator<SieveBufferedCacheTrait>;
 #endif
 extern template class CacheAllocator<S3FIFOCacheTrait>;
 
@@ -2188,9 +2153,10 @@ using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
 
 using ClockAllocator = CacheAllocator<ClockCacheTrait>;
 using SieveAllocator = CacheAllocator<SieveCacheTrait>;
+using Sieve2Allocator = CacheAllocator<Sieve2CacheTrait>;
 using SieveBufferedAllocator = CacheAllocator<SieveBufferedCacheTrait>;
 #endif
 
 using S3FIFOAllocator = CacheAllocator<S3FIFOCacheTrait>;
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook

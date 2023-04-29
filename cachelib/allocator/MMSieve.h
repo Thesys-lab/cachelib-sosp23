@@ -38,14 +38,6 @@
 namespace facebook {
 namespace cachelib {
 
-// FIFO-reinsertion
-// use n bits to track whether an object's frequency / has been accessed (n=1 or
-// 2) the bit incr by 1 when an object is requested at eviction time, the
-// pointer scan from the last scan position (or the least recently used if first
-// time) to the most recently used, if an object is not accessed, it is evicted
-// otherwise, the tracked freq reduces by one and insert the object back
-//
-// other names: Clock / Second Chance
 class MMSieve {
  public:
   // unique identifier per MMType

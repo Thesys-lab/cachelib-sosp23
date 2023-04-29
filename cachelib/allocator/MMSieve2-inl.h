@@ -16,24 +16,18 @@
 
 namespace facebook {
 namespace cachelib {
-namespace detail {
-template <typename T>
-bool areBytesSame(const T& one, const T& two) {
-  return std::memcmp(&one, &two, sizeof(T)) == 0;
-}
-} // namespace detail
 
 /* Container Interface Implementation */
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 MMSieve2::Container<T, HookPtr>::Container(serialization::MMSieve2Object object,
-                                        PtrCompressor compressor)
+                                           PtrCompressor compressor)
     : compressor_(std::move(compressor)),
-      lru_(*object.lru(), compressor_),
+      sieve2_(*object.sieve2(), compressor_),
       insertionPoint_(compressor_.unCompress(
           CompressedPtr{*object.compressedInsertionPoint()})),
       tailSize_(*object.tailSize()),
       config_(*object.config()) {
-  lruRefreshTime_ = config_.lruRefreshTime;
+  sieve2RefreshTime_ = config_.sieve2RefreshTime;
   nextReconfigureTime_ = config_.mmReconfigureIntervalSecs.count() == 0
                              ? std::numeric_limits<Time>::max()
                              : static_cast<Time>(util::getCurrentTimeSec()) +
@@ -42,7 +36,7 @@ MMSieve2::Container<T, HookPtr>::Container(serialization::MMSieve2Object object,
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 bool MMSieve2::Container<T, HookPtr>::recordAccess(T& node,
-                                                AccessMode mode) noexcept {
+                                                   AccessMode mode) noexcept {
   if ((mode == AccessMode::kWrite && !config_.updateOnWrite) ||
       (mode == AccessMode::kRead && !config_.updateOnRead)) {
     return false;
@@ -52,7 +46,7 @@ bool MMSieve2::Container<T, HookPtr>::recordAccess(T& node,
   // check if the node is still being memory managed
   if (node.isInMMContainer() &&
       ((curr >= getUpdateTime(node) +
-                    lruRefreshTime_.load(std::memory_order_relaxed)) ||
+                    sieve2RefreshTime_.load(std::memory_order_relaxed)) ||
        !isAccessed(node))) {
     if (!isAccessed(node)) {
       markAccessed(node);
@@ -62,14 +56,14 @@ bool MMSieve2::Container<T, HookPtr>::recordAccess(T& node,
       reconfigureLocked(curr);
       ensureNotInsertionPoint(node);
       if (node.isInMMContainer()) {
-        lru_.moveToHead(node);
+        sieve2_.moveToHead(node);
         setUpdateTime(node, curr);
       }
       if (isTail(node)) {
         unmarkTail(node);
         tailSize_--;
         XDCHECK_LE(0u, tailSize_);
-        updateLruInsertionPoint();
+        updatesieve2InsertionPoint();
       }
     };
 
@@ -79,7 +73,7 @@ bool MMSieve2::Container<T, HookPtr>::recordAccess(T& node,
     // if the tryLockUpdate optimization is off, we always execute the
     // critical section and return true
     if (config_.tryLockUpdate) {
-      if (auto lck = LockHolder{*lruMutex_, std::try_to_lock}) {
+      if (auto lck = LockHolder{*sieve2Mutex_, std::try_to_lock}) {
         func();
         return true;
       }
@@ -87,7 +81,7 @@ bool MMSieve2::Container<T, HookPtr>::recordAccess(T& node,
       return false;
     }
 
-    lruMutex_->lock_combine(func);
+    sieve2Mutex_->lock_combine(func);
     return true;
   }
   return false;
@@ -96,7 +90,7 @@ bool MMSieve2::Container<T, HookPtr>::recordAccess(T& node,
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 cachelib::EvictionAgeStat MMSieve2::Container<T, HookPtr>::getEvictionAgeStat(
     uint64_t projectedLength) const noexcept {
-  return lruMutex_->lock_combine([this, projectedLength]() {
+  return sieve2Mutex_->lock_combine([this, projectedLength]() {
     return getEvictionAgeStatLocked(projectedLength);
   });
 }
@@ -108,11 +102,11 @@ MMSieve2::Container<T, HookPtr>::getEvictionAgeStatLocked(
   EvictionAgeStat stat{};
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
-  const T* node = lru_.getTail();
+  const T* node = sieve2_.getTail();
   stat.warmQueueStat.oldestElementAge =
       node ? currTime - getUpdateTime(*node) : 0;
   for (size_t numSeen = 0; numSeen < projectedLength && node != nullptr;
-       numSeen++, node = lru_.getPrev(*node)) {
+       numSeen++, node = sieve2_.getPrev(*node)) {
   }
   stat.warmQueueStat.projectedAge = node ? currTime - getUpdateTime(*node)
                                          : stat.warmQueueStat.oldestElementAge;
@@ -123,19 +117,20 @@ MMSieve2::Container<T, HookPtr>::getEvictionAgeStatLocked(
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 void MMSieve2::Container<T, HookPtr>::setConfig(const Config& newConfig) {
-  lruMutex_->lock_combine([this, newConfig]() {
+  sieve2Mutex_->lock_combine([this, newConfig]() {
     config_ = newConfig;
-    if (config_.lruInsertionPointSpec == 0 && insertionPoint_ != nullptr) {
+    if (config_.sieve2InsertionPointSpec == 0 && insertionPoint_ != nullptr) {
       auto curr = insertionPoint_;
       while (tailSize_ != 0) {
         XDCHECK(curr != nullptr);
         unmarkTail(*curr);
         tailSize_--;
-        curr = lru_.getNext(*curr);
+        curr = sieve2_.getNext(*curr);
       }
       insertionPoint_ = nullptr;
     }
-    lruRefreshTime_.store(config_.lruRefreshTime, std::memory_order_relaxed);
+    sieve2RefreshTime_.store(config_.sieve2RefreshTime,
+                             std::memory_order_relaxed);
     nextReconfigureTime_ = config_.mmReconfigureIntervalSecs.count() == 0
                                ? std::numeric_limits<Time>::max()
                                : static_cast<Time>(util::getCurrentTimeSec()) +
@@ -145,18 +140,18 @@ void MMSieve2::Container<T, HookPtr>::setConfig(const Config& newConfig) {
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 typename MMSieve2::Config MMSieve2::Container<T, HookPtr>::getConfig() const {
-  return lruMutex_->lock_combine([this]() { return config_; });
+  return sieve2Mutex_->lock_combine([this]() { return config_; });
 }
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
-void MMSieve2::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
-  if (config_.lruInsertionPointSpec == 0) {
+void MMSieve2::Container<T, HookPtr>::updatesieve2InsertionPoint() noexcept {
+  if (config_.sieve2InsertionPointSpec == 0) {
     return;
   }
 
   // If insertionPoint_ is nullptr initialize it to tail first
   if (insertionPoint_ == nullptr) {
-    insertionPoint_ = lru_.getTail();
+    insertionPoint_ = sieve2_.getTail();
     tailSize_ = 0;
     if (insertionPoint_ != nullptr) {
       markTail(*insertionPoint_);
@@ -164,7 +159,7 @@ void MMSieve2::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
     }
   }
 
-  if (lru_.size() <= 1) {
+  if (sieve2_.size() <= 1) {
     // we are done;
     return;
   }
@@ -172,19 +167,19 @@ void MMSieve2::Container<T, HookPtr>::updateLruInsertionPoint() noexcept {
   XDCHECK_NE(reinterpret_cast<uintptr_t>(nullptr),
              reinterpret_cast<uintptr_t>(insertionPoint_));
 
-  const auto expectedSize = lru_.size() >> config_.lruInsertionPointSpec;
+  const auto expectedSize = sieve2_.size() >> config_.sieve2InsertionPointSpec;
   auto curr = insertionPoint_;
 
-  while (tailSize_ < expectedSize && curr != lru_.getHead()) {
-    curr = lru_.getPrev(*curr);
+  while (tailSize_ < expectedSize && curr != sieve2_.getHead()) {
+    curr = sieve2_.getPrev(*curr);
     markTail(*curr);
     tailSize_++;
   }
 
-  while (tailSize_ > expectedSize && curr != lru_.getTail()) {
+  while (tailSize_ > expectedSize && curr != sieve2_.getTail()) {
     unmarkTail(*curr);
     tailSize_--;
-    curr = lru_.getNext(*curr);
+    curr = sieve2_.getNext(*curr);
   }
 
   insertionPoint_ = curr;
@@ -194,19 +189,19 @@ template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 bool MMSieve2::Container<T, HookPtr>::add(T& node) noexcept {
   const auto currTime = static_cast<Time>(util::getCurrentTimeSec());
 
-  return lruMutex_->lock_combine([this, &node, currTime]() {
+  return sieve2Mutex_->lock_combine([this, &node, currTime]() {
     if (node.isInMMContainer()) {
       return false;
     }
-    if (config_.lruInsertionPointSpec == 0 || insertionPoint_ == nullptr) {
-      lru_.linkAtHead(node);
+    if (config_.sieve2InsertionPointSpec == 0 || insertionPoint_ == nullptr) {
+      sieve2_.linkAtHead(node);
     } else {
-      lru_.insertBefore(*insertionPoint_, node);
+      sieve2_.insertBefore(*insertionPoint_, node);
     }
     node.markInMMContainer();
     setUpdateTime(node, currTime);
     unmarkAccessed(node);
-    updateLruInsertionPoint();
+    updatesieve2InsertionPoint();
     return true;
   });
 }
@@ -214,32 +209,34 @@ bool MMSieve2::Container<T, HookPtr>::add(T& node) noexcept {
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 typename MMSieve2::Container<T, HookPtr>::LockedIterator
 MMSieve2::Container<T, HookPtr>::getEvictionIterator() const noexcept {
-  LockHolder l(*lruMutex_);
-  return LockedIterator{std::move(l), lru_.rbegin()};
+  LockHolder l(*sieve2Mutex_);
+  return LockedIterator{std::move(l), sieve2_.rbegin()};
 }
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 template <typename F>
 void MMSieve2::Container<T, HookPtr>::withEvictionIterator(F&& fun) {
   if (config_.useCombinedLockForIterators) {
-    lruMutex_->lock_combine([this, &fun]() { fun(Iterator{lru_.rbegin()}); });
+    sieve2Mutex_->lock_combine(
+        [this, &fun]() { fun(Iterator{sieve2_.rbegin()}); });
   } else {
-    LockHolder lck{*lruMutex_};
-    fun(Iterator{lru_.rbegin()});
+    LockHolder lck{*sieve2Mutex_};
+    fun(Iterator{sieve2_.rbegin()});
   }
 }
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
-void MMSieve2::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept {
+void MMSieve2::Container<T, HookPtr>::ensureNotInsertionPoint(
+    T& node) noexcept {
   // If we are removing the insertion point node, grow tail before we remove
   // so that insertionPoint_ is valid (or nullptr) after removal
   if (&node == insertionPoint_) {
-    insertionPoint_ = lru_.getPrev(*insertionPoint_);
+    insertionPoint_ = sieve2_.getPrev(*insertionPoint_);
     if (insertionPoint_ != nullptr) {
       tailSize_++;
       markTail(*insertionPoint_);
     } else {
-      XDCHECK_EQ(lru_.size(), 1u);
+      XDCHECK_EQ(sieve2_.size(), 1u);
     }
   }
 }
@@ -247,20 +244,20 @@ void MMSieve2::Container<T, HookPtr>::ensureNotInsertionPoint(T& node) noexcept 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 void MMSieve2::Container<T, HookPtr>::removeLocked(T& node) {
   ensureNotInsertionPoint(node);
-  lru_.remove(node);
+  sieve2_.remove(node);
   unmarkAccessed(node);
   if (isTail(node)) {
     unmarkTail(node);
     tailSize_--;
   }
   node.unmarkInMMContainer();
-  updateLruInsertionPoint();
+  updatesieve2InsertionPoint();
   return;
 }
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 bool MMSieve2::Container<T, HookPtr>::remove(T& node) noexcept {
-  return lruMutex_->lock_combine([this, &node]() {
+  return sieve2Mutex_->lock_combine([this, &node]() {
     if (!node.isInMMContainer()) {
       return false;
     }
@@ -279,12 +276,12 @@ void MMSieve2::Container<T, HookPtr>::remove(Iterator& it) noexcept {
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 bool MMSieve2::Container<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
-  return lruMutex_->lock_combine([this, &oldNode, &newNode]() {
+  return sieve2Mutex_->lock_combine([this, &oldNode, &newNode]() {
     if (!oldNode.isInMMContainer() || newNode.isInMMContainer()) {
       return false;
     }
     const auto updateTime = getUpdateTime(oldNode);
-    lru_.replace(oldNode, newNode);
+    sieve2_.replace(oldNode, newNode);
     oldNode.unmarkInMMContainer();
     newNode.markInMMContainer();
     setUpdateTime(newNode, updateTime);
@@ -311,27 +308,27 @@ template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 serialization::MMSieve2Object MMSieve2::Container<T, HookPtr>::saveState()
     const noexcept {
   serialization::MMSieve2Config configObject;
-  *configObject.lruRefreshTime() =
-      lruRefreshTime_.load(std::memory_order_relaxed);
-  *configObject.lruRefreshRatio() = config_.lruRefreshRatio;
+  *configObject.sieve2RefreshTime() =
+      sieve2RefreshTime_.load(std::memory_order_relaxed);
+  *configObject.sieve2RefreshRatio() = config_.sieve2RefreshRatio;
   *configObject.updateOnWrite() = config_.updateOnWrite;
   *configObject.updateOnRead() = config_.updateOnRead;
   *configObject.tryLockUpdate() = config_.tryLockUpdate;
-  *configObject.lruInsertionPointSpec() = config_.lruInsertionPointSpec;
+  *configObject.sieve2InsertionPointSpec() = config_.sieve2InsertionPointSpec;
 
   serialization::MMSieve2Object object;
   *object.config() = configObject;
   *object.compressedInsertionPoint() =
       compressor_.compress(insertionPoint_).saveState();
   *object.tailSize() = tailSize_;
-  *object.lru() = lru_.saveState();
+  *object.sieve2() = sieve2_.saveState();
   return object;
 }
 
 template <typename T, MMSieve2::Hook<T> T::*HookPtr>
 MMContainerStat MMSieve2::Container<T, HookPtr>::getStats() const noexcept {
-  auto stat = lruMutex_->lock_combine([this]() {
-    auto* tail = lru_.getTail();
+  auto stat = sieve2Mutex_->lock_combine([this]() {
+    auto* tail = sieve2_.getTail();
 
     // we return by array here because DistributedMutex is fastest when the
     // output data fits within 48 bytes.  And the array is exactly 48 bytes, so
@@ -339,11 +336,11 @@ MMContainerStat MMSieve2::Container<T, HookPtr>::getStats() const noexcept {
     //
     // the rest of the parameters are 0, so we don't need the critical section
     // to return them
-    return folly::make_array(lru_.size(),
-                             tail == nullptr ? 0 : getUpdateTime(*tail),
-                             lruRefreshTime_.load(std::memory_order_relaxed));
+    return folly::make_array(
+        sieve2_.size(), tail == nullptr ? 0 : getUpdateTime(*tail),
+        sieve2RefreshTime_.load(std::memory_order_relaxed));
   });
-  return {stat[0] /* lru size */,
+  return {stat[0] /* sieve2 size */,
           stat[1] /* tail time */,
           stat[2] /* refresh time */,
           0,
@@ -359,14 +356,14 @@ void MMSieve2::Container<T, HookPtr>::reconfigureLocked(const Time& currTime) {
   }
   nextReconfigureTime_ = currTime + config_.mmReconfigureIntervalSecs.count();
 
-  // update LRU refresh time
+  // update sieve2 refresh time
   auto stat = getEvictionAgeStatLocked(0);
-  auto lruRefreshTime = std::min(
-      std::max(config_.defaultLruRefreshTime,
+  auto sieve2RefreshTime = std::min(
+      std::max(config_.defaultsieve2RefreshTime,
                static_cast<uint32_t>(stat.warmQueueStat.oldestElementAge *
-                                     config_.lruRefreshRatio)),
-      kLruRefreshTimeCap);
-  lruRefreshTime_.store(lruRefreshTime, std::memory_order_relaxed);
+                                     config_.sieve2RefreshRatio)),
+      ksieve2RefreshTimeCap);
+  sieve2RefreshTime_.store(sieve2RefreshTime, std::memory_order_relaxed);
 }
 
 // Iterator Context Implementation
@@ -375,5 +372,5 @@ MMSieve2::Container<T, HookPtr>::LockedIterator::LockedIterator(
     LockHolder l, const Iterator& iter) noexcept
     : Iterator(iter), l_(std::move(l)) {}
 
-} // namespace cachelib
-} // namespace facebook
+}  // namespace cachelib
+}  // namespace facebook
