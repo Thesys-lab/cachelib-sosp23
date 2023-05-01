@@ -78,26 +78,6 @@ for algo in lru s3fifo clock sieve tinylfu twoq; do
     done
 done
 
-# cluster52
-numactl --membind=0 ./_build/$algo $DATA 100 20 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 200 21 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 400 22 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 800 23 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 1600 24 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 2400 24 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 3200 25 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 4800 25 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 6400 26 1 | tee -a res2
-numactl --membind=0 ./_build/$algo $DATA 8000 26 1 | tee -a res2
-
-
-numactl --membind=0 ./_build/$algo $DATA 4000 25 1 | tee -a res_mul2
-numactl --membind=0 ./_build/$algo $DATA 8000 26 2 | tee -a res_mul2
-numactl --membind=0 ./_build/$algo $DATA 16000 27 4 | tee -a res_mul2
-numactl --membind=0 ./_build/$algo $DATA 32000 28 8 | tee -a res_mul2
-numactl --membind=0 ./_build/$algo $DATA 64000 29 16 | tee -a res_mul2
-
-
 
 # wiki 
 numactl --membind=0 ./_build/sieve $DATA 8000 24 1 | tee -a res_mul
@@ -106,12 +86,13 @@ numactl --membind=0 ./_build/sieve $DATA 32000 26 4 | tee -a res_mul
 numactl --membind=0 ./_build/sieve $DATA 64000 27 8 | tee -a res_mul
 numactl --membind=0 ./_build/sieve $DATA 128000 28 16 | tee -a res_mul
 
-# meta
-numactl --membind=0 ./_build/${algo} $DATA 4000 24 1 | tee -a res_mul4
-numactl --membind=0 ./_build/${algo} $DATA 8000 25 2 | tee -a res_mul4
-numactl --membind=0 ./_build/${algo} $DATA 16000 26 4 | tee -a res_mul4
-numactl --membind=0 ./_build/${algo} $DATA 32000 27 8 | tee -a res_mul4
-numactl --membind=0 ./_build/${algo} $DATA 64000 28 16 | tee -a res_mul4
+# meta and Twitter
+numactl --membind=0 ./_build/${algo} $DATA 4000 24 1 | tee -a res_mul2
+numactl --membind=0 ./_build/${algo} $DATA 8000 25 2 | tee -a res_mul2
+numactl --membind=0 ./_build/${algo} $DATA 16000 26 4 | tee -a res_mul2
+numactl --membind=0 ./_build/${algo} $DATA 32000 27 8 | tee -a res_mul2
+numactl --membind=0 ./_build/${algo} $DATA 64000 28 16 | tee -a res_mul2
+grep 153.93 res_mul2
 
 # zipf
 numactl --membind=0 ./_build/${algo} $DATA 4000 22 1 | tee -a res_mul6
