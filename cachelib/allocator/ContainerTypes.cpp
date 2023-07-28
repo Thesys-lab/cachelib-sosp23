@@ -20,8 +20,6 @@
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
 #include "cachelib/allocator/MMSieve.h"
-#include "cachelib/allocator/MMSieve2.h"
-#include "cachelib/allocator/MMSieveBuffered.h"
 #include "cachelib/allocator/MMS3FIFO.h"
 
 namespace facebook {
@@ -34,8 +32,7 @@ const int MMTinyLFU::kId = 3;
 
 const int MMClock::kId = 4;
 const int MMSieve::kId = 6;
-const int MMSieve2::kId = 8;
-const int MMSieveBuffered::kId = 7;
+// const int MMSieveBuffered::kId = 7;
 const int MMS3FIFO::kId = 5;
 
 // AccessType

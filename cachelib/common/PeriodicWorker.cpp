@@ -48,8 +48,6 @@ void PeriodicWorker::loop(void) {
   auto breakOut = [this]() { return wakeUp_ || shouldStopWork_; };
   char threadName[64];
   pthread_getname_np(pthread_self(), threadName, sizeof(threadName));
-  XLOG(INFO) << "Starting periodic worker thread "
-             << folly::getCurrentThreadName().value_or("unknown") << " ";
 
   LockHolder l(lock_);
   preWork();

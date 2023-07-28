@@ -16,17 +16,11 @@
 
 #pragma once
 #include "cachelib/allocator/ChainedHashTable.h"
-// #include "cachelib/allocator/BucketHashTable.h"
-#define FULL_COMPILE
-#ifdef FULL_COMPILE
 #include "cachelib/allocator/MM2Q.h"
 #include "cachelib/allocator/MMLru.h"
 #include "cachelib/allocator/MMTinyLFU.h"
 #include "cachelib/allocator/MMClock.h"
 #include "cachelib/allocator/MMSieve.h"
-#include "cachelib/allocator/MMSieve2.h"
-#include "cachelib/allocator/MMSieveBuffered.h"
-#endif
 #include "cachelib/allocator/MMS3FIFO.h"
 #include "cachelib/common/Mutex.h"
 
@@ -40,7 +34,6 @@ namespace cachelib {
 // accessed.
 // AccessTypeLock is the lock type for the access container that supports
 // multiple locking primitives
-#ifdef FULL_COMPILE
 struct LruCacheTrait {
   using MMType = MMLru;
   using AccessType = ChainedHashTable;
@@ -77,24 +70,22 @@ struct SieveCacheTrait {
   using AccessTypeLocks = SharedMutexBuckets;
 };
 
-struct Sieve2CacheTrait {
-  using MMType = MMSieve2;
-  using AccessType = ChainedHashTable;
-  using AccessTypeLocks = SharedMutexBuckets;
-};
+// struct Sieve2CacheTrait {
+//   using MMType = MMSieve2;
+//   using AccessType = ChainedHashTable;
+//   using AccessTypeLocks = SharedMutexBuckets;
+// };
 
-struct SieveBufferedCacheTrait {
-  using MMType = MMSieveBuffered;
-  using AccessType = ChainedHashTable;
-  using AccessTypeLocks = SharedMutexBuckets;
-};
-#endif
+// struct SieveBufferedCacheTrait {
+//   using MMType = MMSieveBuffered;
+//   using AccessType = ChainedHashTable;
+//   using AccessTypeLocks = SharedMutexBuckets;
+// };
 
 struct S3FIFOCacheTrait {
   using MMType = MMS3FIFO;
   using AccessType = ChainedHashTable;
   using AccessTypeLocks = SharedMutexBuckets;
-  // using AccessTypeLocks = SpinBuckets;
 };
 
 } // namespace cachelib

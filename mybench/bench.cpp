@@ -83,10 +83,13 @@ void report_bench_result(struct bench_data *bdata, bench_opts_t *opts) {
   printf(
       "cachelib %s %ld MiB, %s, "
       "%.2lf hour, runtime %.2lf sec, %ld requests, throughput "
-      "%.2lf/%.2lf MQPS, miss ratio %.4lf\n",
+      "%.2lf MQPS, miss ratio %.4lf\n",
       // "utilization %.4lf, "
       // "write ratio %.4lf, del ratio %.4lf\n",
       typeid(bdata->cache).name(), opts->cache_size_in_mb, opts->trace_path,
       (double)bdata->trace_time / 3600.0, runtime / 1.0e6, bdata->n_get,
-      throughput, throughput_since_last, miss_ratio);
+      throughput, miss_ratio);
 }
+
+
+

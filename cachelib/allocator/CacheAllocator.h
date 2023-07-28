@@ -2113,8 +2113,6 @@ class CacheAllocator : public CacheBase {
 namespace facebook {
 namespace cachelib {
 
-#define FULL_COMPILE
-#ifdef FULL_COMPILE
 // Declare templates ahead of use to reduce compilation time
 extern template class CacheAllocator<LruCacheTrait>;
 extern template class CacheAllocator<LruCacheWithSpinBucketsTrait>;
@@ -2123,12 +2121,9 @@ extern template class CacheAllocator<TinyLFUCacheTrait>;
 
 extern template class CacheAllocator<ClockCacheTrait>;
 extern template class CacheAllocator<SieveCacheTrait>;
-extern template class CacheAllocator<Sieve2CacheTrait>;
-extern template class CacheAllocator<SieveBufferedCacheTrait>;
-#endif
+// extern template class CacheAllocator<SieveBufferedCacheTrait>;
 extern template class CacheAllocator<S3FIFOCacheTrait>;
 
-#ifdef FULL_COMPILE
 // CacheAllocator with an LRU eviction policy
 // LRU policy can be configured to act as a segmented LRU as well
 using LruAllocator = CacheAllocator<LruCacheTrait>;
@@ -2153,9 +2148,7 @@ using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
 
 using ClockAllocator = CacheAllocator<ClockCacheTrait>;
 using SieveAllocator = CacheAllocator<SieveCacheTrait>;
-using Sieve2Allocator = CacheAllocator<Sieve2CacheTrait>;
-using SieveBufferedAllocator = CacheAllocator<SieveBufferedCacheTrait>;
-#endif
+// using SieveBufferedAllocator = CacheAllocator<SieveBufferedCacheTrait>;
 
 using S3FIFOAllocator = CacheAllocator<S3FIFOCacheTrait>;
 }  // namespace cachelib
