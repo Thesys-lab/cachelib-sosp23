@@ -20,6 +20,7 @@ namespace cachelib {
 // used for single thread
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 T* S3FIFOList<T, HookPtr>::getEvictionCandidate() noexcept {
+
   size_t listSize = pfifo_->size() + mfifo_->size();
   if (listSize == 0) {
     return nullptr;
@@ -39,6 +40,10 @@ T* S3FIFOList<T, HookPtr>::getEvictionCandidate() noexcept {
       // evict from probationary FIFO
       curr = pfifo_->removeTail();
       if (curr == nullptr) {
+        if (pfifo_->size() != 0) {
+          printf("pfifo_->size() = %zu\n", pfifo_->size());
+          abort();
+        }
         continue;
       }
       if (pfifo_->isAccessed(*curr)) {
@@ -49,6 +54,7 @@ T* S3FIFOList<T, HookPtr>::getEvictionCandidate() noexcept {
         mfifo_->linkAtHead(*curr);
       } else {
         hist_.insert(hashNode(*curr));
+
         return curr;
       }
     } else {

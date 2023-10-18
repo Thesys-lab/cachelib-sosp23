@@ -3,6 +3,8 @@ set -euo pipefail
 
 BUILD_TYPE=RelWithDebInfo
 
+sudo apt install ninja-build >/dev/null; 
+
 clear
 pushd ../; 
 ./contrib/build.sh -j -v;

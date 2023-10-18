@@ -188,6 +188,8 @@ class AtomicDList {
     return node.template isFlagSet<RefFlags::kMMFlag1>();
   }
 
+  void sanityCheck(); 
+
   // Iterator interface for the double linked list. Supports both iterating
   // from the tail and head.
   class Iterator {

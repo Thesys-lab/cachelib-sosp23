@@ -17,6 +17,25 @@
 namespace facebook {
 namespace cachelib {
 
+
+template <typename T, AtomicDListHook<T> T::*HookPtr>
+void AtomicDList<T, HookPtr>::sanityCheck() {
+    size_t curr_size = 0;
+    T* curr = head_.load();
+    while (curr != nullptr) {
+      curr_size++;
+      curr = getNext(*curr);
+    }
+    XDCHECK_EQ(curr_size, size_.load());
+
+    if (curr_size != size_.load()) {
+      XLOGF(ERR, "curr_size: {}, size: {}", curr_size, size_.load());
+      printf("curr_size: %zu, size: %zu\n", curr_size, size_.load());
+      abort();
+    }
+  }
+
+
 /* Linked list implemenation */
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 void AtomicDList<T, HookPtr>::linkAtHead(T& node) noexcept {
@@ -119,11 +138,11 @@ T* AtomicDList<T, HookPtr>::removeTail() noexcept {
   if (head_ == tail) {
     T* oldHead = tail;
     head_.compare_exchange_weak(oldHead, nullptr);
-  }
+  } else {
   // do not do this since this object will be evicted/promoted
-  // else {
-  //   setNext(*prev, nullptr);
-  // }
+  // update: somehow we need this otherwise it will conflict with the pool-rebalance thread
+    setNext(*prev, nullptr);
+  }
 
   setPrev(*tail, nullptr);
 
@@ -172,7 +191,6 @@ T* AtomicDList<T, HookPtr>::removeNTail(int n) noexcept {
     size_ -= i;
   }
 
-  // printf("removed %d nodes, size %lu\n", i, size_.load());
   return tail;
 }
 
@@ -197,6 +215,7 @@ void AtomicDList<T, HookPtr>::unlink(const T& node) noexcept {
   if (next != nullptr) {
     setPrevFrom(*next, node);
   }
+
   size_--;
 }
 
@@ -216,7 +235,6 @@ void AtomicDList<T, HookPtr>::remove(T& node) noexcept {
 
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 void AtomicDList<T, HookPtr>::replace(T& oldNode, T& newNode) noexcept {
-  printf("replace\n");
   LockHolder l(*mtx_);
 
   // Update head and tail links if needed
