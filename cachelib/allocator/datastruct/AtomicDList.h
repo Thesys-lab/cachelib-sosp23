@@ -270,6 +270,8 @@ class AtomicDList {
 
   mutable folly::cacheline_aligned<Mutex> mtx_;
 
+  mutable std::shared_mutex head_mutex;
+  
   // head of the linked list
   std::atomic<T*> head_{nullptr};
 
