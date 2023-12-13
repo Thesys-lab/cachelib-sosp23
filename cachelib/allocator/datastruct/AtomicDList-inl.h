@@ -39,6 +39,8 @@ void AtomicDList<T, HookPtr>::sanityCheck() {
 /* Linked list implemenation */
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 void AtomicDList<T, HookPtr>::linkAtHead(T& node) noexcept {
+  std::shared_lock lock(head_mutex);
+  
   setPrev(node, nullptr);
 
   T* oldHead = head_.load();
@@ -67,6 +69,8 @@ template <typename T, AtomicDListHook<T> T::*HookPtr>
 void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start,
                                                  T& end,
                                                  size_t n) noexcept {
+  std::shared_lock lock(head_mutex);
+  
   setPrev(start, nullptr);
 
   T* oldHead = head_.load();
@@ -93,6 +97,8 @@ void AtomicDList<T, HookPtr>::linkAtHeadMultiple(T& start,
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 void AtomicDList<T, HookPtr>::linkAtHeadFromADList(
     AtomicDList<T, HookPtr>& o) noexcept {
+  std::shared_lock lock(head_mutex);
+  
   T* oHead = &o.getHead();
   T* oTail = &o.getTail();
 
@@ -138,12 +144,9 @@ T* AtomicDList<T, HookPtr>::removeTail() noexcept {
   if (head_ == tail) {
     T* oldHead = tail;
     head_.compare_exchange_weak(oldHead, nullptr);
-  } else {
-  // do not do this since this object will be evicted/promoted
-  // update: somehow we need this otherwise it will conflict with the pool-rebalance thread
-    setNext(*prev, nullptr);
   }
 
+  setNext(*tail, nullptr);
   setPrev(*tail, nullptr);
 
   size_--;
@@ -197,23 +200,29 @@ T* AtomicDList<T, HookPtr>::removeNTail(int n) noexcept {
 template <typename T, AtomicDListHook<T> T::*HookPtr>
 void AtomicDList<T, HookPtr>::unlink(const T& node) noexcept {
   XDCHECK_GT(size_, 0u);
-  // fix head_ and tail_ if the node is either of that.
-  auto* const prev = getPrev(node);
-  auto* const next = getNext(node);
 
-  if (&node == head_) {
-    head_ = next;
+  {
+    std::unique_lock lock(head_mutex);
+    
+    auto* const next = getNext(node);
+    
+    if (&node == head_) {
+      head_ = next;
+    }
+    
+    if (next != nullptr) {
+      setPrevFrom(*next, node);
+    }
   }
+
+  auto* const prev = getPrev(node);
+  
   if (&node == tail_) {
     tail_ = prev;
   }
 
-  // fix the next and prev ptrs of the node before and after us.
   if (prev != nullptr) {
     setNextFrom(*prev, node);
-  }
-  if (next != nullptr) {
-    setPrevFrom(*next, node);
   }
 
   size_--;
